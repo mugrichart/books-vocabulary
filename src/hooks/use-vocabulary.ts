@@ -11,6 +11,8 @@ export interface Book {
   totalPages: number;
   currentPage: number;
   wordCount: number;
+  pdfUrl?: string;
+  coverUrl?: string;
 }
 
 export interface VocabularyWord {
@@ -148,7 +150,7 @@ export function useVocabulary() {
     localStorage.setItem("lexiflow_words", JSON.stringify(newWords));
   };
 
-  const addBook = (title: string, author: string, totalPages: number) => {
+  const addBook = (title: string, author: string, totalPages: number, pdfUrl?: string, coverUrl?: string) => {
     const coverColors = [
       "from-violet-600 to-purple-800",
       "from-teal-600 to-emerald-800",
@@ -168,6 +170,8 @@ export function useVocabulary() {
       totalPages,
       currentPage: 0,
       wordCount: 0,
+      pdfUrl,
+      coverUrl,
     };
 
     saveBooks([...books, newBook]);

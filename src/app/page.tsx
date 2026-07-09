@@ -4,13 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { useVocabulary } from "@/hooks/use-vocabulary";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, BookPlus, GraduationCap, Plus, Sparkles, TrendingUp, Trophy } from "lucide-react";
+import { BookOpen, BookPlus, GraduationCap, Plus, Sparkles, TrendingUp, Trophy, FileText, Loader2 } from "lucide-react";
 
 export default function Dashboard() {
   const { books, words, addWord, addBook, isLoading } = useVocabulary();
@@ -27,7 +27,22 @@ export default function Dashboard() {
   const [bookTitle, setBookTitle] = useState("");
   const [bookAuthor, setBookAuthor] = useState("");
   const [bookPages, setBookPages] = useState("");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [isBookOpen, setIsBookOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setPdfFile(file);
+      
+      // Auto-populate title if empty
+      if (!bookTitle) {
+        const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
+        setBookTitle(cleanName);
+      }
+    }
+  };
 
   const handleAddWord = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,14 +56,81 @@ export default function Dashboard() {
     setIsWordOpen(false);
   };
 
-  const handleAddBook = (e: React.FormEvent) => {
+  const handleAddBook = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookTitle || !bookAuthor || !bookPages) return;
-    addBook(bookTitle, bookAuthor, parseInt(bookPages) || 100);
-    setBookTitle("");
-    setBookAuthor("");
-    setBookPages("");
-    setIsBookOpen(false);
+
+    setIsUploading(true);
+
+    try {
+      let pdfUrl = "";
+      let coverUrl = "";
+
+      if (pdfFile) {
+        // Extract cover image from the PDF on the client side
+        const arrayBuffer = await pdfFile.arrayBuffer();
+        
+        // Dynamically import pdf.js to prevent SSR issues
+        const pdfjs = await import("pdfjs-dist");
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+        const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        const page = await pdf.getPage(1);
+        
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        if (!context) {
+          throw new Error("Canvas context initialization failed");
+        }
+
+        await page.render({
+          canvasContext: context,
+          viewport: viewport,
+        }).promise;
+
+        const coverBlob = await new Promise<Blob | null>((resolve) => {
+          canvas.toBlob((blob) => resolve(blob), "image/png");
+        });
+
+        // Prepare file upload payload
+        const formData = new FormData();
+        formData.append("pdf", pdfFile);
+        if (coverBlob) {
+          formData.append("cover", coverBlob, "cover.png");
+        }
+
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to upload book files");
+        }
+
+        const data = await res.json();
+        pdfUrl = data.pdfUrl;
+        coverUrl = data.coverUrl;
+      }
+
+      addBook(bookTitle, bookAuthor, parseInt(bookPages) || 100, pdfUrl, coverUrl);
+      
+      setBookTitle("");
+      setBookAuthor("");
+      setBookPages("");
+      setPdfFile(null);
+      setIsBookOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert("Error processing PDF upload. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   if (isLoading) {
@@ -100,10 +182,19 @@ export default function Dashboard() {
                   <DialogHeader>
                     <DialogTitle>Add New Book</DialogTitle>
                     <DialogDescription>
-                      Create a new book to start logging your vocabulary terms.
+                      Create a new book, or upload a PDF to automatically generate its cover.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">Upload PDF (Optional)</label>
+                      <Input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={handleFileChange}
+                        className="cursor-pointer"
+                      />
+                    </div>
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-muted-foreground">Book Title</label>
                       <Input
@@ -134,7 +225,16 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button type="submit" className="bg-violet-600 hover:bg-violet-700 text-white">Save Book</Button>
+                    <Button type="submit" disabled={isUploading} className="bg-violet-600 hover:bg-violet-700 text-white gap-2">
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        "Save Book"
+                      )}
+                    </Button>
                   </DialogFooter>
                 </form>
               </DialogContent>
@@ -289,18 +389,35 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {books.slice(0, 4).map((book) => (
-              <Card key={book.id} className="border-zinc-800 bg-zinc-950/20 hover:bg-zinc-950/40 transition-all overflow-hidden flex flex-col justify-between">
+              <Card key={book.id} className="border-zinc-800 bg-zinc-950/20 hover:bg-zinc-950/40 transition-all overflow-hidden flex flex-col justify-between relative group">
                 <div className="p-4 flex gap-4">
-                  {/* Miniature Cover Gradient */}
-                  <div className={`w-12 h-16 rounded-md bg-gradient-to-br ${book.coverColor} shadow-md flex-shrink-0 flex items-center justify-center`}>
-                    <BookOpen className="h-5 w-5 text-white/80" />
+                  {/* Miniature Cover */}
+                  <div className="w-12 h-16 rounded-md shadow-md flex-shrink-0 overflow-hidden relative">
+                    {book.coverUrl ? (
+                      <img
+                        src={book.coverUrl}
+                        alt={book.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className={`w-full h-full bg-gradient-to-br ${book.coverColor} flex items-center justify-center`}>
+                        <BookOpen className="h-5 w-5 text-white/80" />
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-1 min-w-0">
                     <h3 className="font-bold text-sm truncate text-zinc-100">{book.title}</h3>
                     <p className="text-xs text-muted-foreground truncate">{book.author}</p>
-                    <p className="text-[10px] text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-full inline-block mt-1">
-                      {book.wordCount} words logged
-                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-[10px] text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-full inline-block">
+                        {book.wordCount} words logged
+                      </p>
+                      {book.pdfUrl && (
+                        <span className="text-[10px] text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full">
+                          PDF
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="px-4 pb-4 pt-1 space-y-1.5 border-t border-zinc-900/50">
