@@ -145,3 +145,8 @@
 .rotate-y-180 {
   transform: rotateY(180deg);
 }
+
+.rpv-core__inner-pages,
+.rpv-core__inner-page-container--single {
+  scroll-behavior: smooth;
+}

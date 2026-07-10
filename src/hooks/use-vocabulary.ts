@@ -120,23 +120,25 @@ export function useVocabulary() {
   // Load from localStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const storedBooks = localStorage.getItem("lexiflow_books");
-      const storedWords = localStorage.getItem("lexiflow_words");
+      queueMicrotask(() => {
+        const storedBooks = localStorage.getItem("lexiflow_books");
+        const storedWords = localStorage.getItem("lexiflow_words");
 
-      if (storedBooks) {
-        setBooks(JSON.parse(storedBooks));
-      } else {
-        setBooks(DEFAULT_BOOKS);
-        localStorage.setItem("lexiflow_books", JSON.stringify(DEFAULT_BOOKS));
-      }
+        if (storedBooks) {
+          setBooks(JSON.parse(storedBooks));
+        } else {
+          setBooks(DEFAULT_BOOKS);
+          localStorage.setItem("lexiflow_books", JSON.stringify(DEFAULT_BOOKS));
+        }
 
-      if (storedWords) {
-        setWords(JSON.parse(storedWords));
-      } else {
-        setWords(DEFAULT_WORDS);
-        localStorage.setItem("lexiflow_words", JSON.stringify(DEFAULT_WORDS));
-      }
-      setIsLoading(false);
+        if (storedWords) {
+          setWords(JSON.parse(storedWords));
+        } else {
+          setWords(DEFAULT_WORDS);
+          localStorage.setItem("lexiflow_words", JSON.stringify(DEFAULT_WORDS));
+        }
+        setIsLoading(false);
+      });
     }
   }, []);
 

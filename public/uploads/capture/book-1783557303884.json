@@ -1,0 +1,116 @@
+{
+  "captures": [
+    {
+      "id": "2dbf65bc-e3bf-4ec6-92a7-666ddc480aa9",
+      "pageIndex": 6,
+      "word": "lobby",
+      "sentence": "He climbs out of his Crown Vic, rushes across the sidewalk, and pushes through the revolving door into the lobby.",
+      "coordinates": [
+        {
+          "height": 2.0746451059756374,
+          "left": 68.96501636699632,
+          "pageIndex": 6,
+          "top": 38.29770128025082,
+          "width": 5.4269103690978335
+        }
+      ],
+      "checked": true
+    },
+    {
+      "id": "75e6fb59-213e-46fa-bed1-4af46df6e0e6",
+      "pageIndex": 7,
+      "word": "ricocheting",
+      "sentence": "The noise of the city is loud and close—car horns ricocheting between the buildings and distant ambulances racing toward some other tragedy.",
+      "coordinates": [
+        {
+          "height": 2.0746451059756374,
+          "left": 19.112412061433986,
+          "pageIndex": 7,
+          "top": 16.427194208784318,
+          "width": 11.886327871173053
+        }
+      ],
+      "checked": false
+    },
+    {
+      "id": "05b2de11-2ad6-4a9b-aa2b-ff26416fd6c3",
+      "pageIndex": 7,
+      "word": "pinnacle",
+      "sentence": "The pinnacle of the Poe Building is less than fifty feet above—a crown of glass and steel and gothic masonry.",
+      "coordinates": [
+        {
+          "height": 2.0746451059756374,
+          "left": 45.877644964824576,
+          "pageIndex": 7,
+          "top": 18.697214537351645,
+          "width": 9.380155034565067
+        }
+      ],
+      "checked": false
+    },
+    {
+      "id": "5d50e575-f5f3-4869-b869-7d8bab787688",
+      "pageIndex": 7,
+      "word": "gargoyle",
+      "sentence": "The woman sits fifteen feet away beside an eroding gargoyle, her back to Barry, her legs dangling over the edge.",
+      "coordinates": [
+        {
+          "height": 2.0746451059756374,
+          "left": 68.73984105327209,
+          "pageIndex": 7,
+          "top": 23.61748510727253,
+          "width": 8.761123929290445
+        }
+      ],
+      "checked": false
+    },
+    {
+      "id": "8661b90b-9f2a-46dc-a6e7-12e4b120a538",
+      "pageIndex": 7,
+      "word": "dangling",
+      "sentence": "The woman sits fifteen feet away beside an eroding gargoyle, her back to Barry, her legs dangling over the edge.",
+      "coordinates": [
+        {
+          "height": 2.0746451059756374,
+          "left": 30.055663515965097,
+          "pageIndex": 7,
+          "top": 25.897145974349637,
+          "width": 9.194567187787573
+        }
+      ],
+      "checked": false
+    },
+    {
+      "id": "014f3281-d4f1-4434-92d2-a594c4740ef0",
+      "pageIndex": 7,
+      "word": "inches",
+      "sentence": "He inches closer, the wet flagstones soaking through his socks.",
+      "coordinates": [
+        {
+          "height": 2.0746451059756374,
+          "left": 19.734742917025056,
+          "pageIndex": 7,
+          "top": 28.547396215703195,
+          "width": 6.901293537337034
+        }
+      ],
+      "checked": false
+    },
+    {
+      "id": "fdebd2fa-05ce-4a15-91df-61ccfce91f22",
+      "pageIndex": 7,
+      "word": "straining",
+      "sentence": "“I’m going to step over here so you don’t have to keep straining your neck to look at me.” Barry moves away from her at an angle that also brings him to the parapet, eight feet down from where she’s sitting.",
+      "coordinates": [
+        {
+          "height": 2.0746451059756374,
+          "left": 73.04912422953984,
+          "pageIndex": 7,
+          "top": 79.30698766727537,
+          "width": 8.999650833890481
+        }
+      ],
+      "checked": false
+    }
+  ]
+}

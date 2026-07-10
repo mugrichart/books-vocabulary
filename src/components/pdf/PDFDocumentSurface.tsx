@@ -1,25 +1,40 @@
-import { type RefObject } from 'react';
-import { Viewer, Worker } from '@react-pdf-viewer/core';
-import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
+import dynamic from 'next/dynamic';
+import { type HighlightArea } from '@react-pdf-viewer/highlight';
+import { type CaptureItem } from './usePdfSelections';
 
-import '@react-pdf-viewer/core/lib/styles/index.css';
-import '@react-pdf-viewer/default-layout/lib/styles/index.css';
+// Use dynamic imports to prevent global worker conflicts
+const CapturePDFViewer = dynamic(() => import('./CapturePDFViewer'), { ssr: false });
+const PracticePDFViewer = dynamic(() => import('./PracticePDFViewer'), { ssr: false });
 
 interface Props {
+  mode: 'capture' | 'practice';
   fileUrl: string;
-  viewerContainerRef: RefObject<HTMLDivElement | null>;
-  onTextSelection: () => void;
+  activePracticeItem: CaptureItem | null;
+  onCapture: (text: string, areas: HighlightArea[]) => Promise<void>;
+  onPracticeCorrect: (id: string) => void;
 }
 
-export default function PDFDocumentSurface({ fileUrl, viewerContainerRef, onTextSelection }: Props) {
-  const defaultLayoutPluginInstance = defaultLayoutPlugin();
+export default function PDFDocumentSurface({
+  mode,
+  fileUrl,
+  activePracticeItem,
+  onCapture,
+  onPracticeCorrect,
+}: Props) {
+  if (mode === 'practice') {
+     return (
+       <PracticePDFViewer
+         fileUrl={fileUrl}
+         activeItem={activePracticeItem}
+         onCorrect={onPracticeCorrect}
+       />
+     );
+  }
 
   return (
-    <div className="relative flex-1 overflow-hidden" ref={viewerContainerRef} onMouseUp={onTextSelection}>
-      <Worker workerUrl={pdfjsWorker}>
-        <Viewer fileUrl={fileUrl} plugins={[defaultLayoutPluginInstance]} />
-      </Worker>
-    </div>
+    <CapturePDFViewer
+      fileUrl={fileUrl}
+      onCapture={onCapture}
+    />
   );
 }
