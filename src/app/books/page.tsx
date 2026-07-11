@@ -80,7 +80,7 @@ export default function BooksPage() {
   if (isLoading) return <div className="flex h-[50vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-violet-500" /></div>;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-zinc-100">My Reading Library</h1>
@@ -112,31 +112,57 @@ export default function BooksPage() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
         {books.map((book) => (
-          <Card key={book.id} className="border-zinc-800 bg-zinc-950/20">
-            <CardHeader className="flex flex-row gap-4 items-start pt-6 pb-4">
-              <div className="w-16 h-24 rounded bg-zinc-800 overflow-hidden">
-                {book.coverUrl && <img src={book.coverUrl} className="w-full h-full object-cover" />}
+          <div key={book.id} className="relative group rounded-xl overflow-hidden cursor-pointer bg-zinc-950 border border-zinc-800 shadow-lg aspect-[3/4] transition-all hover:ring-2 hover:ring-violet-500 flex items-center justify-center">
+            {/* Cover image */}
+            {book.coverUrl ? (
+              <img src={book.coverUrl} className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105" alt={book.title} />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-800 text-zinc-500 p-4 text-center">
+                <FileText className="h-8 w-8 mb-2 opacity-50" />
+                <span className="text-xs font-medium line-clamp-3">{book.title}</span>
               </div>
-              <div>
-                <h3 className="font-bold text-zinc-100">{book.title}</h3>
-                <p className="text-xs text-zinc-400">{book.author}</p>
+            )}
+            
+            {/* Always visible tiny progress bar at the very bottom, disappears on hover to make room for full overlay */}
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-800 group-hover:opacity-0 transition-opacity duration-300">
+              <div className="h-full bg-violet-500" style={{ width: `${book.progress}%` }} />
+            </div>
+
+            {/* Hover overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 sm:p-4">
+              <div className="transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+                <h3 className="font-bold text-sm sm:text-base text-zinc-100 leading-tight mb-1 line-clamp-2">{book.title}</h3>
+                <p className="text-xs text-zinc-400 mb-3 line-clamp-1">{book.author}</p>
+                
+                <div className="mb-3">
+                  <Progress value={book.progress} className="h-1.5" />
+                </div>
+
+                <div className="flex gap-2">
+                  <Link
+                    href={`/books/${book.id}`}
+                    className="flex-1 inline-flex items-center justify-center rounded-md text-xs sm:text-sm font-semibold bg-white text-black hover:bg-zinc-200 h-8 transition-colors"
+                  >
+                    Read
+                  </Link>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      deleteBook(book.id);
+                    }}
+                    className="inline-flex items-center justify-center rounded-md bg-red-600/90 text-white hover:bg-red-600 h-8 px-3 transition-colors"
+                    aria-label="Delete book"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    <span className="text-xs sm:text-sm font-medium">Delete</span>
+                  </button>
+                </div>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Progress value={book.progress} />
-              <div className="flex gap-2">
-                {/* Fix 2: Applied button styles directly to the Next.js Link instead of using Button asChild */}
-                <Link 
-                  href={`/books/${book.id}`}
-                  className="flex-1 inline-flex items-center justify-center rounded-md text-sm font-medium bg-zinc-100 text-zinc-900 hover:bg-zinc-200 h-9 px-3 transition-colors"
-                >
-                  Read
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ))}
       </div>
     </div>
