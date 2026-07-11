@@ -1,15 +1,11 @@
 import { type CaptureItem } from './usePdfSelections';
+import { ArrowLeft } from 'lucide-react';
 
-interface Props {
-  items: CaptureItem[];
-  isLoadingText: boolean;
-  onRemoveItem: (id: string) => void;
-  // highlightQuery is no longer strictly needed if you want to simplify,
-  // but keeping it here for your existing UI logic:
-  highlightQuery: (sentence: string, query: string) => string[];
-}
+
 
 export default function SelectionSidebar({
+  title,
+  onBack,
   items,
   isLoadingText,
   onRemoveItem,
@@ -17,6 +13,20 @@ export default function SelectionSidebar({
 }: Props) {
   return (
     <aside className="w-[340px] min-w-[280px] overflow-y-auto border-r border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
+      {/* Header with back button and title */}
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200"
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Back
+        </button>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 ml-2">
+          {title}
+        </h2>
+      </div>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100">

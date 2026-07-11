@@ -1,4 +1,5 @@
 import SelectionSidebar from './SelectionSidebar';
+import HeaderSidebar from './HeaderSidebar';
 import { type CaptureItem } from './usePdfSelections';
 
 interface Props {
@@ -9,6 +10,8 @@ interface Props {
   onRemoveItem: (id: string) => void;
   onResetPractice: () => void;
   highlightQuery: (sentence: string, query: string) => string[];
+  title: string;
+  onBack: () => void;
 }
 
 export default function LeftSidebar({
@@ -19,12 +22,14 @@ export default function LeftSidebar({
   onRemoveItem,
   onResetPractice,
   highlightQuery,
+  title,
+  onBack,
 }: Props) {
   if (mode === 'practice') {
     return (
-      <aside className="w-[340px] min-w-[280px] overflow-y-auto border-r border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
+      <aside className="flex flex-col h-screen w-[340px] min-w-[280px] border-r border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-4">Practice Mode</h2>
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto space-y-4">
           {items.map((item) => (
             <div
               key={item.id}
@@ -45,16 +50,16 @@ export default function LeftSidebar({
               All captured words are checked.
             </div>
           )}
-          {items.length > 0 && (
-            <button
-              type="button"
-              onClick={onResetPractice}
-              className="w-full rounded-lg border border-violet-500/40 bg-violet-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-violet-700"
-            >
-              Play Again
-            </button>
-          )}
         </div>
+        {items.length > 0 && (
+          <button
+            type="button"
+            onClick={onResetPractice}
+            className="w-full mt-4 rounded-lg border border-violet-500/40 bg-violet-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-violet-700"
+          >
+            Play Again
+          </button>
+        )}
       </aside>
     );
   }

@@ -11,6 +11,7 @@ import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
 import '@react-pdf-viewer/core/lib/styles/index.css';
 import '@react-pdf-viewer/default-layout/lib/styles/index.css';
 import '@react-pdf-viewer/highlight/lib/styles/index.css';
+import '@react-pdf-viewer/page-navigation/lib/styles/index.css';
 import { CaptureItem } from './usePdfSelections';
 
 interface Props {
@@ -24,7 +25,7 @@ export default function PracticePDFViewer({
     activeItem,
     onCorrect,
 }: Props) {
-  const defaultLayoutPluginInstance = defaultLayoutPlugin();
+  const defaultLayoutPluginInstance = defaultLayoutPlugin({ defaultScale: 1.5 });
 
   const normalizeAnswer = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
 
@@ -69,29 +70,29 @@ export default function PracticePDFViewer({
     },
   });
 
+  // Adjust scroll after each activeItem change (highlightPlugin handles page jump)
   useEffect(() => {
-    const firstArea = activeItem?.coordinates[0];
-
-    if (firstArea) {
-      highlightPluginInstance.jumpToHighlightArea(firstArea);
+    if (activeItem) {
+      const firstArea = activeItem.coordinates[0];
+      if (firstArea) {
+        highlightPluginInstance.jumpToHighlightArea(firstArea);
+        setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            window.scrollBy(0, -200);
+          }
+        }, 0);
+      }
     }
   }, [activeItem, highlightPluginInstance]);
 
   return (
-    <div className="relative flex-1 overflow-hidden h-screen w-full">
-      {activeItem ? (
-        <Worker workerUrl={pdfjsWorker}>
-          <Viewer
-            fileUrl={fileUrl}
-            plugins={[defaultLayoutPluginInstance, highlightPluginInstance]}
-            initialPage={activeItem.pageIndex}
-          />
-        </Worker>
-      ) : (
-        <div className="flex h-full items-center justify-center bg-white text-sm text-slate-500 dark:bg-zinc-950 dark:text-zinc-400">
-          All captured words have been practiced.
-        </div>
-      )}
-    </div>
+    <Worker workerUrl={pdfjsWorker}>
+      <Viewer
+        fileUrl={fileUrl}
+        plugins={[defaultLayoutPluginInstance, highlightPluginInstance]}
+        // initialPage is kept as fallback
+        initialPage={activeItem?.pageIndex ?? 0}
+      />
+    </Worker>
   );
 }

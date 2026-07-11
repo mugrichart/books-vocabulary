@@ -55,10 +55,7 @@ export default function ReadPage() {
 
   return (
     <main className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-100">{book.title}</h1>
-        <p className="text-sm text-muted-foreground">{book.author}</p>
-      </div>
+
       <PDFViewer fileUrl={book.pdfUrl} bookId={book.id} />
     </main>
   );

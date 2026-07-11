@@ -20,6 +20,9 @@ importers:
       '@react-pdf-viewer/highlight':
         specifier: ^3.12.0
         version: 3.12.0(pdfjs-dist@3.11.174)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@react-pdf-viewer/page-navigation':
+        specifier: 3.12.0
+        version: 3.12.0(pdfjs-dist@3.11.174)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
