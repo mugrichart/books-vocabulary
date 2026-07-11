@@ -16,9 +16,11 @@ import type { HighlightArea } from '@react-pdf-viewer/highlight';
 interface Props {
   fileUrl: string;
   onCapture: (selectedText: string, areas: HighlightArea[]) => Promise<void>;
+  /** The page (0-based) to open on mount. Changing this prop via a key forces a remount. */
+  initialPage?: number;
 }
 
-function CapturePDFViewer({ fileUrl, onCapture }: Props) {
+function CapturePDFViewer({ fileUrl, onCapture, initialPage = 0 }: Props) {
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
   const highlightPluginInstance = highlightPlugin({
@@ -33,7 +35,7 @@ function CapturePDFViewer({ fileUrl, onCapture }: Props) {
       }
 
       return (
-        <div 
+        <div
           className="absolute z-50 bg-slate-800 text-white px-3 py-1.5 rounded-md shadow-xl flex gap-2 text-sm font-medium"
           style={{
             left: `${renderProps.selectionRegion.left}%`,
@@ -41,9 +43,9 @@ function CapturePDFViewer({ fileUrl, onCapture }: Props) {
             transform: 'translate(0, 8px)',
           }}
         >
-          <button 
-            onClick={async () => {
-              await onCapture(renderProps.selectedText, renderProps.highlightAreas);
+          <button
+            onClick={() => {
+              onCapture(renderProps.selectedText, renderProps.highlightAreas);
               renderProps.toggle();
             }}
             className="hover:text-violet-400 transition-colors"
@@ -58,10 +60,11 @@ function CapturePDFViewer({ fileUrl, onCapture }: Props) {
   return (
     <div className="relative flex-1 overflow-hidden h-screen">
       <Worker workerUrl={pdfjsWorker}>
-        <Viewer 
-          fileUrl={fileUrl} 
+        <Viewer
+          fileUrl={fileUrl}
           defaultScale={1.5}
-          plugins={[defaultLayoutPluginInstance, highlightPluginInstance]} 
+          initialPage={initialPage}
+          plugins={[defaultLayoutPluginInstance, highlightPluginInstance]}
         />
       </Worker>
     </div>

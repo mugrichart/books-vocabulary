@@ -8,10 +8,12 @@ interface Props {
   activeItemId: string | null;
   isLoadingText: boolean;
   onRemoveItem: (id: string) => void;
+  onRetryItem: (id: string) => void;
   onResetPractice: () => void;
   highlightQuery: (sentence: string, query: string) => string[];
   title: string;
   onBack: () => void;
+  totalCount: number;
 }
 
 export default function LeftSidebar({
@@ -20,11 +22,14 @@ export default function LeftSidebar({
   activeItemId,
   isLoadingText,
   onRemoveItem,
+  onRetryItem,
   onResetPractice,
   highlightQuery,
   title,
   onBack,
+  totalCount,
 }: Props) {
+
   if (mode === 'practice') {
     // Find the index of the active item so we know which ones are "upcoming"
     const activeIndex = items.findIndex((i) => i.id === activeItemId);
@@ -79,12 +84,19 @@ export default function LeftSidebar({
     );
   }
 
+  const MAX_DISPLAY = 10;
+  const displayedItems = items.slice(0, MAX_DISPLAY);
+
   return (
     <SelectionSidebar
-      items={items}
+      title={title}
+      onBack={onBack}
+      items={displayedItems}
       isLoadingText={isLoadingText}
       onRemoveItem={onRemoveItem}
+      onRetryItem={onRetryItem}
       highlightQuery={highlightQuery}
+      totalCount={items.length}
     />
   );
 }

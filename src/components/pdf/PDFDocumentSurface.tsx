@@ -16,6 +16,10 @@ interface Props {
   onPracticeCorrect: (id: string) => void;
   onAttemptsExhausted?: (data: { options: string[]; explanation: string }) => void;
   onAttemptChange?: (count: number) => void;
+  /** Page to open CapturePDFViewer on (changes trigger remount) */
+  captureInitialPage: number;
+  /** Bumped whenever CapturePDFViewer should remount to jump to captureInitialPage */
+  captureViewerKey: number;
 }
 
 export default function PDFDocumentSurface({
@@ -27,6 +31,8 @@ export default function PDFDocumentSurface({
   onPracticeCorrect,
   onAttemptsExhausted,
   onAttemptChange,
+  captureInitialPage,
+  captureViewerKey,
 }: Props) {
   if (mode === 'practice') {
      return (
@@ -43,8 +49,10 @@ export default function PDFDocumentSurface({
 
   return (
     <CapturePDFViewer
+      key={captureViewerKey}
       fileUrl={fileUrl}
       onCapture={onCapture}
+      initialPage={captureInitialPage}
     />
   );
 }

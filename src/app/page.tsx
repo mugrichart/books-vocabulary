@@ -72,7 +72,7 @@ export default function Dashboard() {
         
         // Dynamically import pdf.js to prevent SSR issues
         const pdfjs = await import("pdfjs-dist");
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
         const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
         const pdf = await loadingTask.promise;
@@ -110,7 +110,8 @@ export default function Dashboard() {
         });
 
         if (!res.ok) {
-          throw new Error("Failed to upload book files");
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to upload to S3");
         }
 
         const data = await res.json();
@@ -125,9 +126,9 @@ export default function Dashboard() {
       setBookPages("");
       setPdfFile(null);
       setIsBookOpen(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Error processing PDF upload. Please try again.");
+      alert("Error: " + (err.message || "Failed to process PDF upload."));
     } finally {
       setIsUploading(false);
     }

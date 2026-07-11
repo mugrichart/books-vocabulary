@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, ClipboardList } from 'lucide-react';
+
 
 type Mode = 'capture' | 'practice';
 
@@ -46,20 +46,20 @@ export default function RightSidebar({ mode, setMode, practiceData, attempts, on
         <button
           type="button"
           onClick={() => setMode('capture')}
-          className={`flex items-center justify-center p-2 rounded-lg transition-colors ${
+          className={`flex-1 flex items-center justify-center py-1.5 px-3 rounded-md text-sm font-medium transition-colors ${
             mode === 'capture' ? 'bg-violet-600 text-white' : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
           }`}
         >
-          <FileText className="h-5 w-5" />
+          Capture
         </button>
         <button
           type="button"
           onClick={() => setMode('practice')}
-          className={`flex items-center justify-center p-2 rounded-lg transition-colors ${
+          className={`flex-1 flex items-center justify-center py-1.5 px-3 rounded-md text-sm font-medium transition-colors ${
             mode === 'practice' ? 'bg-violet-600 text-white' : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
           }`}
         >
-          <ClipboardList className="h-5 w-5" />
+          Practice
         </button>
       </div>
 

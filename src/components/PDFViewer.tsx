@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import LeftSidebar from './pdf/LeftSidebar';
 import RightSidebar from './pdf/RightSidebar';
@@ -25,11 +25,53 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
     items,
     isLoadingText,
     captureSelection,
+    retryCapture,
     removeItem,
     markItemChecked,
     resetPractice,
+    fetchLastCapturePage,
     highlightQuery,
   } = usePdfSelections(fileUrl, bookId, mode);
+
+  // Back button handler
+  const handleBack = useCallback(() => {
+    router.back();
+  }, [router]);
+
+  // --- Capture-mode page tracking ---
+  // We only want to auto-scroll in capture mode in two specific cases:
+  //   1. On initial page load
+  //   2. When the user switches back from practice to capture mode
+  // We always fetch fresh from the server to avoid stale data.
+  const [captureInitialPage, setCaptureInitialPage] = useState(0);
+  const [captureViewerKey, setCaptureViewerKey] = useState(0);
+  const hasScrolledOnLoadRef = useRef(false);
+  const prevModeRef = useRef(mode);
+
+  // Case 1: on mount, fetch the most recently captured item's page
+  useEffect(() => {
+    if (hasScrolledOnLoadRef.current) return;
+    hasScrolledOnLoadRef.current = true;
+    fetchLastCapturePage().then((page) => {
+      if (page !== null) {
+        setCaptureInitialPage(page);
+        setCaptureViewerKey((k) => k + 1);
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Case 2: when switching practice → capture, fetch fresh from server
+  useEffect(() => {
+    if (prevModeRef.current === 'practice' && mode === 'capture') {
+      fetchLastCapturePage().then((page) => {
+        if (page !== null) {
+          setCaptureInitialPage(page);
+          setCaptureViewerKey((k) => k + 1);
+        }
+      });
+    }
+    prevModeRef.current = mode;
+  }, [mode, fetchLastCapturePage]);
 
   const activePracticeItem = items.find((item) => !item.checked) ?? null;
 
@@ -79,6 +121,7 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
         activeItemId={activePracticeItem?.id ?? null}
         isLoadingText={isLoadingText}
         onRemoveItem={removeItem}
+        onRetryItem={retryCapture}
         onResetPractice={() => {
           resetPractice();
           setPracticeData(undefined);
@@ -86,7 +129,8 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
         }}
         highlightQuery={highlightQuery}
         title={bookId}
-        onBack={() => router.back()}
+        totalCount={items.length}
+        onBack={handleBack}
       />
 
       {/* Main PDF Area */}
@@ -100,6 +144,8 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
           onPracticeCorrect={markItemChecked}
           onAttemptsExhausted={handleAttemptsExhausted}
           onAttemptChange={handleAttemptChange}
+          captureInitialPage={captureInitialPage}
+          captureViewerKey={captureViewerKey}
         />
       </div>
 

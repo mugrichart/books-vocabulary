@@ -45,7 +45,7 @@ export default function BooksPage() {
       if (pdfFile) {
         const arrayBuffer = await pdfFile.arrayBuffer();
         const pdfjs = await import("pdfjs-dist");
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
         const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
         const page = await pdf.getPage(1);
         const viewport = page.getViewport({ scale: 1.5 });
@@ -60,7 +60,10 @@ export default function BooksPage() {
           formData.append("pdf", pdfFile);
           if (coverBlob) formData.append("cover", coverBlob, "cover.png");
           const res = await fetch("/api/upload", { method: "POST", body: formData });
-          if (!res.ok) throw new Error("Failed to upload");
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || "Failed to upload to S3");
+          }
           const data = await res.json();
           pdfUrl = data.pdfUrl;
           coverUrl = data.coverUrl;
@@ -68,9 +71,9 @@ export default function BooksPage() {
       }
       addBook(bookTitle, bookAuthor, parseInt(bookPages) || 100, pdfUrl, coverUrl);
       setBookTitle(""); setBookAuthor(""); setBookPages(""); setPdfFile(null); setIsBookOpen(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Error processing PDF.");
+      alert("Error: " + (err.message || "Failed to process PDF."));
     } finally { setIsUploading(false); }
   };
 

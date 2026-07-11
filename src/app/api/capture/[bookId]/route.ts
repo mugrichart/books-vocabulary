@@ -43,10 +43,12 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
       query.pageIndex = Number(pageIndexStr);
     }
 
+    const sort = url.searchParams.get('sort'); // 'recent' → newest first, default → page order
+
     const captures = await db
       .collection('captures')
       .find(query)
-      .sort({ pageIndex: 1, createdAt: 1 })
+      .sort(sort === 'recent' ? { createdAt: -1 } : { pageIndex: 1, createdAt: 1 })
       .skip(skip)
       .limit(limit)
       .toArray();
