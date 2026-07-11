@@ -1,8 +1,9 @@
 "use client";
 "use no memo";
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Viewer, Worker } from '@react-pdf-viewer/core';
+
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
 import { highlightPlugin } from '@react-pdf-viewer/highlight';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
@@ -11,7 +12,7 @@ import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
 import '@react-pdf-viewer/core/lib/styles/index.css';
 import '@react-pdf-viewer/default-layout/lib/styles/index.css';
 import '@react-pdf-viewer/highlight/lib/styles/index.css';
-import '@react-pdf-viewer/page-navigation/lib/styles/index.css';
+
 import { CaptureItem } from './usePdfSelections';
 
 interface Props {
@@ -25,7 +26,8 @@ export default function PracticePDFViewer({
     activeItem,
     onCorrect,
 }: Props) {
-  const defaultLayoutPluginInstance = defaultLayoutPlugin({ defaultScale: 1.5 });
+  const defaultLayoutPluginInstance = defaultLayoutPlugin();
+
 
   const normalizeAnswer = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
 
@@ -70,17 +72,14 @@ export default function PracticePDFViewer({
     },
   });
 
-  // Adjust scroll after each activeItem change (highlightPlugin handles page jump)
+  // Only jump to the highlight when moving to a different page
+  const prevPageRef = useRef<number | null>(null);
   useEffect(() => {
     if (activeItem) {
       const firstArea = activeItem.coordinates[0];
-      if (firstArea) {
+      if (firstArea && firstArea.pageIndex !== prevPageRef.current) {
         highlightPluginInstance.jumpToHighlightArea(firstArea);
-        setTimeout(() => {
-          if (typeof window !== 'undefined') {
-            window.scrollBy(0, -200);
-          }
-        }, 0);
+        prevPageRef.current = firstArea.pageIndex;
       }
     }
   }, [activeItem, highlightPluginInstance]);
@@ -89,6 +88,7 @@ export default function PracticePDFViewer({
     <Worker workerUrl={pdfjsWorker}>
       <Viewer
         fileUrl={fileUrl}
+          defaultScale={1.5}
         plugins={[defaultLayoutPluginInstance, highlightPluginInstance]}
         // initialPage is kept as fallback
         initialPage={activeItem?.pageIndex ?? 0}

@@ -60,6 +60,7 @@ function CapturePDFViewer({ fileUrl, onCapture }: Props) {
       <Worker workerUrl={pdfjsWorker}>
         <Viewer 
           fileUrl={fileUrl} 
+          defaultScale={1.5}
           plugins={[defaultLayoutPluginInstance, highlightPluginInstance]} 
         />
       </Worker>
