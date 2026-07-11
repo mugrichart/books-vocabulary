@@ -85,11 +85,12 @@ export default function PracticePDFViewer({
       if (attemptsRef.current >= 3 && activeItem && !hasFiredRef.current) {
         hasFiredRef.current = true;
         const correct = activeItem.word;
-        const mockOptions = [correct, 'Option A', 'Option B', 'Option C']
-          .sort(() => Math.random() - 0.5);
-        const explanation =
+        const options = (activeItem.options && activeItem.options.length > 0)
+          ? activeItem.options
+          : [correct, 'Option A', 'Option B', 'Option C'].sort(() => Math.random() - 0.5);
+        const explanation = activeItem.explanation ||
           `General meaning: "${correct}" generally refers to …\n\nIn context: Within the sentence, "${correct}" is used to convey …`;
-        onAttemptsExhausted?.({ options: mockOptions, explanation });
+        onAttemptsExhausted?.({ options, explanation });
       }
     }, 2000);
   }, [activeItem, onCorrect, onAttemptChange, onAttemptsExhausted]);

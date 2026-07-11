@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 export interface Book {
   id: string;
@@ -26,235 +26,175 @@ export interface VocabularyWord {
   createdAt: string;
 }
 
-const DEFAULT_BOOKS: Book[] = [
-  {
-    id: "book-1",
-    title: "The Hobbit",
-    author: "J.R.R. Tolkien",
-    coverColor: "from-emerald-600 to-teal-800",
-    progress: 75,
-    totalPages: 310,
-    currentPage: 232,
-    wordCount: 8,
-  },
-  {
-    id: "book-2",
-    title: "1984",
-    author: "George Orwell",
-    coverColor: "from-rose-700 to-red-900",
-    progress: 40,
-    totalPages: 328,
-    currentPage: 131,
-    wordCount: 6,
-  },
-  {
-    id: "book-3",
-    title: "Atomic Habits",
-    author: "James Clear",
-    coverColor: "from-blue-600 to-indigo-800",
-    progress: 95,
-    totalPages: 270,
-    currentPage: 256,
-    wordCount: 5,
-  },
-];
-
-const DEFAULT_WORDS: VocabularyWord[] = [
-  {
-    id: "word-1",
-    word: "Quintessential",
-    definition: "Representing the most perfect or typical example of a quality or class.",
-    translation: "Typowy / kwintesencjonalny",
-    contextSentence: "Bilbo Baggins was the quintessential Hobbit, loving comfort and peace above all else.",
-    bookId: "book-1",
-    masteryLevel: "mastered",
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "word-2",
-    word: "Obfuscate",
-    definition: "To render obscure, unclear, or unintelligible.",
-    translation: "Zaciemniać / gmatwać",
-    contextSentence: "The government tried to obfuscate the truth using propaganda and Newspeak.",
-    bookId: "book-2",
-    masteryLevel: "learning",
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "word-3",
-    word: "Incremental",
-    definition: "Relating to or denoting an increase or addition, especially one of a series on a fixed scale.",
-    translation: "Przyrostowy",
-    contextSentence: "Atomic habits focus on making incremental changes that compile into massive results.",
-    bookId: "book-3",
-    masteryLevel: "reviewing",
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "word-4",
-    word: "Meticulous",
-    definition: "Showing great attention to detail; very careful and precise.",
-    translation: "Drobiazgowy / skrupulatny",
-    contextSentence: "The Elves kept meticulous records of their history and the songs of old.",
-    bookId: "book-1",
-    masteryLevel: "reviewing",
-    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "word-5",
-    word: "Surveillance",
-    definition: "Close observation, especially of a suspected spy or criminal.",
-    translation: "Inwigilacja / nadzór",
-    contextSentence: "Big Brother maintained constant surveillance over every citizen of Oceania.",
-    bookId: "book-2",
-    masteryLevel: "learning",
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
-
 export function useVocabulary() {
   const [books, setBooks] = useState<Book[]>([]);
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      queueMicrotask(() => {
-        const storedBooks = localStorage.getItem("lexiflow_books");
-        const storedWords = localStorage.getItem("lexiflow_words");
+  // Fetch all books and words on mount
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [booksRes, wordsRes] = await Promise.all([
+        fetch("/api/books"),
+        fetch("/api/words"),
+      ]);
 
-        if (storedBooks) {
-          setBooks(JSON.parse(storedBooks));
-        } else {
-          setBooks(DEFAULT_BOOKS);
-          localStorage.setItem("lexiflow_books", JSON.stringify(DEFAULT_BOOKS));
-        }
-
-        if (storedWords) {
-          setWords(JSON.parse(storedWords));
-        } else {
-          setWords(DEFAULT_WORDS);
-          localStorage.setItem("lexiflow_words", JSON.stringify(DEFAULT_WORDS));
-        }
-        setIsLoading(false);
-      });
+      if (booksRes.ok && wordsRes.ok) {
+        const booksData = await booksRes.json();
+        const wordsData = await wordsRes.json();
+        setBooks(booksData.books || []);
+        setWords(wordsData.words || []);
+      }
+    } catch (err) {
+      console.error("Failed to load vocabulary data from API:", err);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  const saveBooks = (newBooks: Book[]) => {
-    setBooks(newBooks);
-    localStorage.setItem("lexiflow_books", JSON.stringify(newBooks));
-  };
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-  const saveWords = (newWords: VocabularyWord[]) => {
-    setWords(newWords);
-    localStorage.setItem("lexiflow_words", JSON.stringify(newWords));
-  };
+  const addBook = async (
+    title: string,
+    author: string,
+    totalPages: number,
+    pdfUrl?: string,
+    coverUrl?: string
+  ) => {
+    try {
+      const res = await fetch("/api/books", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, author, totalPages, pdfUrl, coverUrl }),
+      });
 
-  const addBook = (title: string, author: string, totalPages: number, pdfUrl?: string, coverUrl?: string) => {
-    const coverColors = [
-      "from-violet-600 to-purple-800",
-      "from-teal-600 to-emerald-800",
-      "from-rose-600 to-red-800",
-      "from-blue-600 to-indigo-800",
-      "from-amber-600 to-orange-800",
-      "from-fuchsia-600 to-pink-800",
-    ];
-    const randomColor = coverColors[Math.floor(Math.random() * coverColors.length)];
-
-    const newBook: Book = {
-      id: `book-${Date.now()}`,
-      title,
-      author,
-      coverColor: randomColor,
-      progress: 0,
-      totalPages,
-      currentPage: 0,
-      wordCount: 0,
-      pdfUrl,
-      coverUrl,
-    };
-
-    saveBooks([...books, newBook]);
-  };
-
-  const updateBookProgress = (bookId: string, currentPage: number) => {
-    const updatedBooks = books.map((b) => {
-      if (b.id === bookId) {
-        const pages = Math.min(currentPage, b.totalPages);
-        const progress = Math.round((pages / b.totalPages) * 100);
-        return {
-          ...b,
-          currentPage: pages,
-          progress,
-        };
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.book) {
+          setBooks((prev) => [data.book, ...prev]);
+        }
       }
-      return b;
-    });
-    saveBooks(updatedBooks);
+    } catch (err) {
+      console.error("Failed to add book:", err);
+    }
   };
 
-  const deleteBook = (bookId: string) => {
-    saveBooks(books.filter((b) => b.id !== bookId));
-    saveWords(words.filter((w) => w.bookId !== bookId));
+  const updateBookProgress = async (bookId: string, currentPage: number) => {
+    try {
+      const res = await fetch(`/api/books/${bookId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPage }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setBooks((prev) =>
+            prev.map((b) =>
+              b.id === bookId
+                ? { ...b, currentPage: data.currentPage, progress: data.progress }
+                : b
+            )
+          );
+        }
+      }
+    } catch (err) {
+      console.error("Failed to update book progress:", err);
+    }
   };
 
-  const addWord = (
+  const deleteBook = async (bookId: string) => {
+    try {
+      const res = await fetch(`/api/books/${bookId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        setBooks((prev) => prev.filter((b) => b.id !== bookId));
+        setWords((prev) => prev.filter((w) => w.bookId !== bookId));
+      }
+    } catch (err) {
+      console.error("Failed to delete book:", err);
+    }
+  };
+
+  const addWord = async (
     word: string,
     definition: string,
     translation: string,
     contextSentence: string,
     bookId: string
   ) => {
-    const newWord: VocabularyWord = {
-      id: `word-${Date.now()}`,
-      word,
-      definition,
-      translation,
-      contextSentence,
-      bookId,
-      masteryLevel: "learning",
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const res = await fetch("/api/words", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ word, definition, translation, contextSentence, bookId }),
+      });
 
-    const updatedWords = [newWord, ...words];
-    saveWords(updatedWords);
-
-    // Update book word count
-    const updatedBooks = books.map((b) => {
-      if (b.id === bookId) {
-        return { ...b, wordCount: b.wordCount + 1 };
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.word) {
+          setWords((prev) => [data.word, ...prev]);
+          // Increment word count locally
+          setBooks((prev) =>
+            prev.map((b) => (b.id === bookId ? { ...b, wordCount: b.wordCount + 1 } : b))
+          );
+        }
       }
-      return b;
-    });
-    saveBooks(updatedBooks);
+    } catch (err) {
+      console.error("Failed to add word:", err);
+    }
   };
 
-  const updateWordMastery = (wordId: string, level: "learning" | "reviewing" | "mastered") => {
-    const updatedWords = words.map((w) => {
-      if (w.id === wordId) {
-        return { ...w, masteryLevel: level };
+  const updateWordMastery = async (
+    wordId: string,
+    level: "learning" | "reviewing" | "mastered"
+  ) => {
+    try {
+      const res = await fetch(`/api/words/${wordId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ masteryLevel: level }),
+      });
+
+      if (res.ok) {
+        setWords((prev) =>
+          prev.map((w) => (w.id === wordId ? { ...w, masteryLevel: level } : w))
+        );
       }
-      return w;
-    });
-    saveWords(updatedWords);
+    } catch (err) {
+      console.error("Failed to update word mastery:", err);
+    }
   };
 
-  const deleteWord = (wordId: string) => {
-    const wordToDelete = words.find((w) => w.id === wordId);
-    if (!wordToDelete) return;
+  const deleteWord = async (wordId: string) => {
+    try {
+      const wordToDelete = words.find((w) => w.id === wordId);
+      if (!wordToDelete) return;
 
-    saveWords(words.filter((w) => w.id !== wordId));
+      const res = await fetch(`/api/words/${wordId}`, {
+        method: "DELETE",
+      });
 
-    // Update book word count
-    const updatedBooks = books.map((b) => {
-      if (b.id === wordToDelete.bookId) {
-        return { ...b, wordCount: Math.max(0, b.wordCount - 1) };
+      if (res.ok) {
+        setWords((prev) => prev.filter((w) => w.id !== wordId));
+        // Decrement book's word count locally
+        setBooks((prev) =>
+          prev.map((b) =>
+            b.id === wordToDelete.bookId
+              ? { ...b, wordCount: Math.max(0, b.wordCount - 1) }
+              : b
+          )
+        );
       }
-      return b;
-    });
-    saveBooks(updatedBooks);
+    } catch (err) {
+      console.error("Failed to delete word:", err);
+    }
   };
 
   return {

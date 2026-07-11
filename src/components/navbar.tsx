@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { BookOpen, Compass, GraduationCap, LayoutDashboard } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { BookOpen, Compass, GraduationCap, LayoutDashboard, LogOut } from "lucide-react";
 
 export function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
 
   const navItems = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -13,6 +14,23 @@ export function Navbar() {
     { name: "Vocabulary", href: "/vocabulary", icon: Compass },
     { name: "Practice", href: "/review", icon: GraduationCap },
   ];
+
+  const handleLogout = async () => {
+    try {
+      const res = await fetch("/api/auth/logout", { method: "POST" });
+      if (res.ok) {
+        router.push("/login");
+        router.refresh();
+      }
+    } catch (error) {
+      console.error("Failed to log out:", error);
+    }
+  };
+
+  // Hide navbar on login and register pages
+  if (pathname.startsWith('/login') || pathname.startsWith('/register')) {
+    return null;
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
@@ -48,6 +66,14 @@ export function Navbar() {
               </Link>
             );
           })}
+          
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-red-400 hover:bg-red-500/5 transition-all duration-200"
+          >
+            <LogOut className="h-4 w-4" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
         </nav>
       </div>
     </header>

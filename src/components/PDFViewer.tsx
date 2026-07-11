@@ -29,7 +29,7 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
     markItemChecked,
     resetPractice,
     highlightQuery,
-  } = usePdfSelections(fileUrl, bookId);
+  } = usePdfSelections(fileUrl, bookId, mode);
 
   const activePracticeItem = items.find((item) => !item.checked) ?? null;
 
