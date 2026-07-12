@@ -141,7 +141,7 @@ export default function PracticePDFViewer({
                     aria-label={`Type the hidden word from page ${area.pageIndex + 1}`}
                     defaultValue=""
                     onChange={(event) => handleAnswerChange(event.target.value)}
-                    className="absolute z-10 rounded-[2px] border-2 border-violet-500 bg-white px-px font-semibold text-zinc-950 shadow-sm outline-none ring-1 ring-violet-500/20 focus:ring-violet-500/40 dark:bg-zinc-950 dark:text-zinc-100"
+                    className="absolute z-10 bg-white px-px font-semibold text-zinc-950 outline-none border-none ring-0 focus:ring-0 focus:outline-none"
                     style={{
                       boxSizing: 'border-box',
                       fontSize: `${Math.max(8, Math.min(16, area.height * 6))}px`,
@@ -159,7 +159,7 @@ export default function PracticePDFViewer({
               return (
                 <div
                   key={`${item.id}-${index}`}
-                  className="absolute z-[5] rounded-[2px] border border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-950"
+                  className="absolute z-[5] bg-white"
                   style={{
                     boxSizing: 'border-box',
                     height: `${area.height}%`,
