@@ -113,6 +113,16 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
     setAttempts(0);
   }, [activePracticeItem, markItemChecked]);
 
+  // Called from RightSidebar hint button — skip attempts and reveal explanation immediately
+  const handleRevealHint = useCallback(() => {
+    if (!activePracticeItem) return;
+    setPracticeData({
+      correct: activePracticeItem.word,
+      options: activePracticeItem.options,
+      explanation: activePracticeItem.explanation,
+    });
+  }, [activePracticeItem]);
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Left Sidebar */}
@@ -156,8 +166,10 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
         setMode={setMode}
         practiceData={practiceData}
         attempts={attempts}
+        hasActiveWord={activePracticeItem !== null}
         onOptionSelect={handleOptionSelect}
         onNext={handleNext}
+        onRevealHint={handleRevealHint}
       />
     </div>
   );
