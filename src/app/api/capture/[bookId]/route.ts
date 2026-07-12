@@ -53,6 +53,11 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
       .limit(limit)
       .toArray();
 
+    const total = await db.collection('captures').countDocuments({
+      userId: session.userId,
+      bookId: bookId,
+    });
+
     const mappedCaptures = captures.map((c) => ({
       id: c._id.toString(),
       pageIndex: c.pageIndex,
@@ -64,7 +69,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
       explanation: c.explanation || '',
     }));
 
-    return NextResponse.json({ captures: mappedCaptures });
+    return NextResponse.json({ captures: mappedCaptures, total });
   } catch (error) {
     console.error('Failed to get captures:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -111,8 +116,14 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       { $inc: { wordCount: 1 } }
     );
 
+    const total = await db.collection('captures').countDocuments({
+      userId: session.userId,
+      bookId,
+    });
+
     return NextResponse.json({
       success: true,
+      total,
       capture: {
         id: result.insertedId.toString(),
         word,
@@ -148,7 +159,11 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
         { _id: new ObjectId(id), userId: session.userId, bookId },
         { $set: { checked: !!checked } }
       );
-      return NextResponse.json({ success: true });
+      const total = await db.collection('captures').countDocuments({
+        userId: session.userId,
+        bookId,
+      });
+      return NextResponse.json({ success: true, total });
     }
 
     if (action === 'delete') {
@@ -165,7 +180,11 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
           { $inc: { wordCount: -1 } }
         );
       }
-      return NextResponse.json({ success: true });
+      const total = await db.collection('captures').countDocuments({
+        userId: session.userId,
+        bookId,
+      });
+      return NextResponse.json({ success: true, total });
     }
 
     if (action === 'reset') {
@@ -173,7 +192,11 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
         { userId: session.userId, bookId },
         { $set: { checked: false } }
       );
-      return NextResponse.json({ success: true });
+      const total = await db.collection('captures').countDocuments({
+        userId: session.userId,
+        bookId,
+      });
+      return NextResponse.json({ success: true, total });
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

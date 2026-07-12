@@ -96,7 +96,7 @@ export default function LeftSidebar({
       onRemoveItem={onRemoveItem}
       onRetryItem={onRetryItem}
       highlightQuery={highlightQuery}
-      totalCount={items.length}
+      totalCount={totalCount}
     />
   );
 }

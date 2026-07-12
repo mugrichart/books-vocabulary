@@ -23,6 +23,7 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
   const [mode, setMode] = useState<'practice' | 'capture'>('capture');
   const {
     items,
+    totalCount,
     isLoadingText,
     captureSelection,
     retryCapture,
@@ -129,7 +130,7 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
         }}
         highlightQuery={highlightQuery}
         title={bookId}
-        totalCount={items.length}
+        totalCount={totalCount}
         onBack={handleBack}
       />
 

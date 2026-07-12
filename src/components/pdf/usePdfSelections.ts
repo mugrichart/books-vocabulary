@@ -17,6 +17,7 @@ export interface CaptureItem {
 export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture' | 'practice') {
   const [pageTexts, setPageTexts] = useState<Record<number, string>>({});
   const [items, setItems] = useState<CaptureItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [isLoadingText, setIsLoadingText] = useState(true);
   const itemsRef = useRef<CaptureItem[]>([]);
 
@@ -44,6 +45,7 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
       if (res.ok) {
         const data = await res.json();
         setCaptureItems(Array.isArray(data?.captures) ? data.captures : []);
+        setTotalCount(typeof data?.total === 'number' ? data.total : (Array.isArray(data?.captures) ? data.captures.length : 0));
       }
     } catch (err) {
       console.error("Failed to load captures:", err);
@@ -139,6 +141,9 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
           item.id === tempId ? { ...data.capture, status: 'success' as const } : item
         );
         setCaptureItems(mode === 'capture' ? updated.slice(0, 30) : updated);
+        if (typeof data.total === 'number') {
+          setTotalCount(data.total);
+        }
       } else {
         throw new Error('Invalid response structure');
       }
@@ -180,6 +185,7 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
     // Prepend placeholder immediately to state so it appears at the top
     const updated = [placeholderItem, ...itemsRef.current];
     setCaptureItems(mode === 'capture' ? updated.slice(0, 30) : updated);
+    setTotalCount((prev) => prev + 1);
 
     // Trigger POST saving request asynchronously (without awaiting it)
     saveCaptureItem(tempId, selectedText, sentence, pageIndex, highlightAreas);
@@ -206,6 +212,7 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
     if (item && (item.status === 'loading' || item.status === 'error')) {
       const updated = itemsRef.current.filter(i => i.id !== id);
       setCaptureItems(updated);
+      setTotalCount((prev) => Math.max(0, prev - 1));
       return;
     }
 
@@ -217,8 +224,14 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
       });
 
       if (response.ok) {
+        const data = await response.json();
         const updated = itemsRef.current.filter(item => item.id !== id);
         setCaptureItems(updated);
+        if (typeof data.total === 'number') {
+          setTotalCount(data.total);
+        } else {
+          setTotalCount((prev) => Math.max(0, prev - 1));
+        }
       }
     } catch (err) {
       console.error('Failed to remove item:', err);
@@ -234,10 +247,14 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
       });
 
       if (response.ok) {
+        const data = await response.json();
         const updated = itemsRef.current.map((item) =>
           item.id === id ? { ...item, checked: true } : item
         );
         setCaptureItems(updated);
+        if (typeof data.total === 'number') {
+          setTotalCount(data.total);
+        }
       }
     } catch (err) {
       console.error('Failed to mark item checked:', err);
@@ -253,8 +270,12 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
       });
 
       if (response.ok) {
+        const data = await response.json();
         const updated = itemsRef.current.map((item) => ({ ...item, checked: false }));
         setCaptureItems(updated);
+        if (typeof data.total === 'number') {
+          setTotalCount(data.total);
+        }
       }
     } catch (err) {
       console.error('Failed to reset practice:', err);
@@ -295,6 +316,7 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
 
   return { 
     items, 
+    totalCount,
     isLoadingText, 
     captureSelection, 
     retryCapture,
