@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { HighlightArea } from '@react-pdf-viewer/highlight';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
 
+const PRACTICE_BATCH_SIZE = 10;
+
+const getPracticeCursorStorageKey = (bookId: string) => `practice-cursor:${bookId}`;
+
 export interface CaptureItem {
   id: string;
   pageIndex: number;
@@ -19,6 +23,9 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
   const [items, setItems] = useState<CaptureItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoadingText, setIsLoadingText] = useState(true);
+  const [practiceCursor, setPracticeCursor] = useState(0);
+  const prefetchedBatchRef = useRef<{ start: number; captures: CaptureItem[]; total: number } | null>(null);
+  const prefetchInFlightRef = useRef<number | null>(null);
   const itemsRef = useRef<CaptureItem[]>([]);
 
   const normalizeText = (text: string) => text.replace(/\s+/g, ' ').trim();
@@ -28,31 +35,121 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
     setItems(captures);
   }, []);
 
+  const persistPracticeCursor = useCallback((cursor: number) => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(getPracticeCursorStorageKey(bookId), String(Math.max(0, cursor)));
+  }, [bookId]);
+
+  const getStoredPracticeCursor = useCallback(() => {
+    if (typeof window === 'undefined') return 0;
+
+    const key = getPracticeCursorStorageKey(bookId);
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) {
+      window.localStorage.setItem(key, '0');
+      return 0;
+    }
+
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      window.localStorage.setItem(key, '0');
+      return 0;
+    }
+
+    return parsed;
+  }, [bookId]);
+
+  const mapPracticeBatchWithCursorOffset = useCallback((captures: CaptureItem[], cursorOffset: number) => {
+    return captures.map((capture, index) => ({
+      ...capture,
+      checked: index < cursorOffset,
+    }));
+  }, []);
+
+  const fetchPracticeBatch = useCallback(async (skip: number) => {
+    const url = new URL(`/api/capture/${bookId}`, window.location.origin);
+    url.searchParams.set('mode', 'highlight');
+    url.searchParams.set('skip', String(skip));
+    url.searchParams.set('limit', String(PRACTICE_BATCH_SIZE));
+
+    const res = await fetch(url.toString(), { cache: 'no-store' });
+    if (!res.ok) {
+      throw new Error('Failed to fetch practice captures');
+    }
+
+    const data = await res.json();
+    const captures = Array.isArray(data?.captures) ? (data.captures as CaptureItem[]) : [];
+    const total = typeof data?.total === 'number' ? data.total : captures.length;
+    return { captures, total };
+  }, [bookId]);
+
+  const loadPracticeBatchForCursor = useCallback(async (cursor: number) => {
+    const nonNegativeCursor = Math.max(0, cursor);
+    const batchStart = Math.floor(nonNegativeCursor / PRACTICE_BATCH_SIZE) * PRACTICE_BATCH_SIZE;
+
+    let fetched: { captures: CaptureItem[]; total: number };
+    const prefetched = prefetchedBatchRef.current;
+    if (prefetched && prefetched.start === batchStart) {
+      fetched = {
+        captures: prefetched.captures,
+        total: prefetched.total,
+      };
+      prefetchedBatchRef.current = null;
+    } else {
+      fetched = await fetchPracticeBatch(batchStart);
+    }
+
+    const safeTotal = Math.max(0, fetched.total);
+    setTotalCount(safeTotal);
+
+    const boundedCursor = Math.min(nonNegativeCursor, safeTotal);
+    if (boundedCursor !== nonNegativeCursor) {
+      setPracticeCursor(boundedCursor);
+      persistPracticeCursor(boundedCursor);
+    }
+
+    const boundedBatchStart = Math.floor(boundedCursor / PRACTICE_BATCH_SIZE) * PRACTICE_BATCH_SIZE;
+    const boundedOffset = Math.max(0, boundedCursor - boundedBatchStart);
+
+    if (boundedBatchStart !== batchStart) {
+      const corrected = await fetchPracticeBatch(boundedBatchStart);
+      setTotalCount(Math.max(0, corrected.total));
+      setCaptureItems(mapPracticeBatchWithCursorOffset(corrected.captures, boundedOffset));
+      return;
+    }
+
+    setCaptureItems(mapPracticeBatchWithCursorOffset(fetched.captures, boundedOffset));
+  }, [fetchPracticeBatch, mapPracticeBatchWithCursorOffset, persistPracticeCursor, setCaptureItems]);
+
   // Load existing captures based on the mode (practice gets unchecked, capture gets last 30)
   const loadCaptures = useCallback(async () => {
     try {
-      const url = new URL(`/api/capture/${bookId}`, window.location.origin);
       if (mode === 'practice') {
-        url.searchParams.set('mode', 'practice');
-        url.searchParams.set('limit', '20'); // Avoid fetching hundreds
+        const storedCursor = getStoredPracticeCursor();
+        setPracticeCursor(storedCursor);
+        prefetchedBatchRef.current = null;
+        prefetchInFlightRef.current = null;
+        await loadPracticeBatchForCursor(storedCursor);
       } else {
+        const url = new URL(`/api/capture/${bookId}`, window.location.origin);
         url.searchParams.set('mode', 'highlight');
         url.searchParams.set('sort', 'recent');
         url.searchParams.set('limit', '30'); // Limit left sidebar to last 30 captures
-      }
 
-      const res = await fetch(url.toString(), { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setCaptureItems(Array.isArray(data?.captures) ? data.captures : []);
-        setTotalCount(typeof data?.total === 'number' ? data.total : (Array.isArray(data?.captures) ? data.captures.length : 0));
+        const res = await fetch(url.toString(), { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          setCaptureItems(Array.isArray(data?.captures) ? data.captures : []);
+          setTotalCount(typeof data?.total === 'number' ? data.total : (Array.isArray(data?.captures) ? data.captures.length : 0));
+        }
       }
     } catch (err) {
       console.error("Failed to load captures:", err);
     }
-  }, [bookId, mode, setCaptureItems]);
+  }, [bookId, getStoredPracticeCursor, loadPracticeBatchForCursor, mode, setCaptureItems]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadCaptures();
   }, [loadCaptures]);
 
@@ -239,6 +336,31 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
   }, [bookId, setCaptureItems]);
 
   const markItemChecked = useCallback(async (id: string) => {
+    if (mode === 'practice') {
+      const currentCursor = practiceCursor;
+      const nextCursor = Math.min(currentCursor + 1, Math.max(0, totalCount));
+      const currentBatchStart = Math.floor(currentCursor / PRACTICE_BATCH_SIZE) * PRACTICE_BATCH_SIZE;
+      const nextBatchStart = Math.floor(nextCursor / PRACTICE_BATCH_SIZE) * PRACTICE_BATCH_SIZE;
+
+      setPracticeCursor(nextCursor);
+      persistPracticeCursor(nextCursor);
+
+      if (nextBatchStart === currentBatchStart) {
+        const nextOffset = nextCursor - nextBatchStart;
+        setCaptureItems(mapPracticeBatchWithCursorOffset(itemsRef.current, nextOffset));
+      } else {
+        const prefetched = prefetchedBatchRef.current;
+        if (prefetched && prefetched.start === nextBatchStart) {
+          const nextOffset = nextCursor - nextBatchStart;
+          setCaptureItems(mapPracticeBatchWithCursorOffset(prefetched.captures, nextOffset));
+          prefetchedBatchRef.current = null;
+        } else {
+          loadPracticeBatchForCursor(nextCursor);
+        }
+      }
+      return;
+    }
+
     try {
       const response = await fetch(`/api/capture/${bookId}`, {
         method: 'PATCH',
@@ -259,9 +381,23 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
     } catch (err) {
       console.error('Failed to mark item checked:', err);
     }
-  }, [bookId, setCaptureItems]);
+  }, [bookId, loadPracticeBatchForCursor, mapPracticeBatchWithCursorOffset, mode, persistPracticeCursor, practiceCursor, setCaptureItems, totalCount]);
+
+  const jumpToPracticeCursor = useCallback(async (nextCursor: number) => {
+    const cursor = Math.max(0, nextCursor);
+    setPracticeCursor(cursor);
+    persistPracticeCursor(cursor);
+    await loadPracticeBatchForCursor(cursor);
+  }, [loadPracticeBatchForCursor, persistPracticeCursor]);
 
   const resetPractice = useCallback(async () => {
+    if (mode === 'practice') {
+      prefetchedBatchRef.current = null;
+      prefetchInFlightRef.current = null;
+      await jumpToPracticeCursor(0);
+      return;
+    }
+
     try {
       const response = await fetch(`/api/capture/${bookId}`, {
         method: 'PATCH',
@@ -280,7 +416,39 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
     } catch (err) {
       console.error('Failed to reset practice:', err);
     }
-  }, [bookId, setCaptureItems]);
+  }, [bookId, jumpToPracticeCursor, mode, setCaptureItems]);
+
+  useEffect(() => {
+    if (mode !== 'practice') return;
+    if (totalCount <= 0) return;
+
+    const currentBatchStart = Math.floor(practiceCursor / PRACTICE_BATCH_SIZE) * PRACTICE_BATCH_SIZE;
+    const offset = practiceCursor - currentBatchStart;
+
+    if (offset !== PRACTICE_BATCH_SIZE - 1) return;
+
+    const nextBatchStart = currentBatchStart + PRACTICE_BATCH_SIZE;
+    if (nextBatchStart >= totalCount) return;
+
+    const existingPrefetch = prefetchedBatchRef.current;
+    if (existingPrefetch && existingPrefetch.start === nextBatchStart) return;
+    if (prefetchInFlightRef.current === nextBatchStart) return;
+
+    prefetchInFlightRef.current = nextBatchStart;
+    fetchPracticeBatch(nextBatchStart)
+      .then(({ captures, total }) => {
+        setTotalCount(Math.max(0, total));
+        prefetchedBatchRef.current = { start: nextBatchStart, captures, total };
+      })
+      .catch((error) => {
+        console.error('Failed to prefetch practice batch:', error);
+      })
+      .finally(() => {
+        if (prefetchInFlightRef.current === nextBatchStart) {
+          prefetchInFlightRef.current = null;
+        }
+      });
+  }, [fetchPracticeBatch, mode, practiceCursor, totalCount]);
 
   /**
    * Fetches only the single most recently created capture and returns its pageIndex.
@@ -317,11 +485,14 @@ export function usePdfSelections(fileUrl: string, bookId: string, mode: 'capture
   return { 
     items, 
     totalCount,
+    practiceCursor,
+    practiceBatchSize: PRACTICE_BATCH_SIZE,
     isLoadingText, 
     captureSelection, 
     retryCapture,
     removeItem, 
     markItemChecked,
+    jumpToPracticeCursor,
     resetPractice,
     fetchLastCapturePage,
     highlightQuery 

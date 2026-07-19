@@ -22,6 +22,14 @@ interface Props {
   attempts: number;
   /** Whether there is an active word being practiced */
   hasActiveWord: boolean;
+  /** Cursor for current practice position */
+  cursor: number;
+  /** Practice batch size */
+  batchSize: number;
+  /** Total captured words for the current book */
+  totalCaptures: number;
+  /** Jump directly to a batch start cursor */
+  onBatchSelect?: (cursor: number) => void;
   /** Callback when an option is chosen */
   onOptionSelect?: (selected: string) => void;
   /** Callback when the user clicks "Next" to advance to the next word */
@@ -30,13 +38,32 @@ interface Props {
   onRevealHint?: () => void;
 }
 
-export default function RightSidebar({ mode, setMode, practiceData, attempts, hasActiveWord, onOptionSelect, onNext, onRevealHint }: Props) {
+export default function RightSidebar({ mode, setMode, practiceData, attempts, hasActiveWord, cursor, batchSize, totalCaptures, onBatchSelect, onOptionSelect, onNext, onRevealHint }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   // Tracks whether practiceData was revealed via the hint button (not by exhausting attempts)
   const [isHintRevealed, setIsHintRevealed] = useState(false);
 
+  const totalBatches = totalCaptures > 0 ? Math.ceil(totalCaptures / batchSize) : 0;
+  const currentBatchIndex = totalBatches > 0
+    ? Math.min(totalBatches - 1, Math.floor(cursor / batchSize))
+    : 0;
+
+  const getBatchFillRatio = (batchIndex: number) => {
+    if (batchIndex < currentBatchIndex) return 1;
+    if (batchIndex > currentBatchIndex) return 0;
+
+    const batchStart = batchIndex * batchSize;
+    const isLastBatch = batchIndex === totalBatches - 1;
+    const lastBatchSize = totalCaptures - batchStart;
+    const effectiveBatchSize = isLastBatch ? Math.max(1, lastBatchSize) : batchSize;
+    const progressInBatch = Math.max(0, Math.min(cursor - batchStart, effectiveBatchSize));
+
+    return progressInBatch / effectiveBatchSize;
+  };
+
   // Reset selection and hint state when practiceData changes (new word)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelected(null);
     setIsHintRevealed(false);
   }, [practiceData]);
@@ -53,7 +80,7 @@ export default function RightSidebar({ mode, setMode, practiceData, attempts, ha
   };
 
   return (
-    <aside className="flex flex-col w-72 min-w-[280px] border-l border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+    <aside className="flex flex-col w-72 min-w-70 border-l border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
       {/* Top section: mode toggle */}
       <div className="flex items-center gap-2 p-3 border-b border-slate-200 dark:border-zinc-800">
         <button
@@ -221,6 +248,66 @@ export default function RightSidebar({ mode, setMode, practiceData, attempts, ha
           </div>
         )}
       </div>
+
+      {mode === 'practice' && totalBatches > 0 && (
+        <div className="border-t border-slate-200 dark:border-zinc-800 px-3 py-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+            Batch Progress
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: totalBatches }, (_, batchIndex) => {
+              const fillRatio = getBatchFillRatio(batchIndex);
+              const isPastOrCurrent = batchIndex <= currentBatchIndex;
+              const radius = 14;
+              const circumference = 2 * Math.PI * radius;
+              const clampedFill = Math.max(0, Math.min(1, fillRatio));
+              const dashOffset = circumference * (1 - clampedFill);
+
+              return (
+                <button
+                  key={batchIndex}
+                  type="button"
+                  disabled={!isPastOrCurrent}
+                  onClick={() => onBatchSelect?.(batchIndex * batchSize)}
+                  title={`Batch ${batchIndex + 1}`}
+                  className={`relative flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+                    isPastOrCurrent
+                      ? 'hover:bg-violet-500/10'
+                      : 'opacity-60 cursor-not-allowed'
+                  }`}
+                >
+                  <svg className="absolute inset-0 h-8 w-8 -rotate-90" viewBox="0 0 32 32" aria-hidden="true">
+                    <circle
+                      cx="16"
+                      cy="16"
+                      r={radius}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      className="text-slate-300 dark:text-zinc-700"
+                    />
+                    <circle
+                      cx="16"
+                      cy="16"
+                      r={radius}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={dashOffset}
+                      className={isPastOrCurrent ? 'text-violet-500' : 'text-slate-400 dark:text-zinc-600'}
+                    />
+                  </svg>
+                  <span className={`relative z-10 text-[10px] font-semibold ${isPastOrCurrent ? 'text-violet-700 dark:text-violet-300' : 'text-slate-500 dark:text-zinc-500'}`}>
+                    {batchIndex + 1}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

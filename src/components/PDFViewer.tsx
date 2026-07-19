@@ -24,11 +24,14 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
   const {
     items,
     totalCount,
+    practiceCursor,
+    practiceBatchSize,
     isLoadingText,
     captureSelection,
     retryCapture,
     removeItem,
     markItemChecked,
+    jumpToPracticeCursor,
     resetPractice,
     fetchLastCapturePage,
     highlightQuery,
@@ -97,14 +100,14 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
   }, []);
 
   // Called from RightSidebar when user picks an option
-  const handleOptionSelect = useCallback((_selected: string) => {
+  const handleOptionSelect = useCallback(() => {
     // Don't auto-advance — let the user read the explanation and click Next.
     // The Next button handles marking checked + advancing.
   }, []);
 
   // Called from RightSidebar "Next" button
   const handleNext = useCallback(() => {
-    // Mark current word as checked (regardless of correct/wrong) so we advance
+    // Move cursor forward by one item in practice mode
     if (activePracticeItem) {
       markItemChecked(activePracticeItem.id);
     }
@@ -122,6 +125,12 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
       explanation: activePracticeItem.explanation,
     });
   }, [activePracticeItem]);
+
+  const handleBatchSelect = useCallback((cursor: number) => {
+    setPracticeData(undefined);
+    setAttempts(0);
+    jumpToPracticeCursor(cursor);
+  }, [jumpToPracticeCursor]);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -167,6 +176,10 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
         practiceData={practiceData}
         attempts={attempts}
         hasActiveWord={activePracticeItem !== null}
+        cursor={practiceCursor}
+        batchSize={practiceBatchSize}
+        totalCaptures={totalCount}
+        onBatchSelect={handleBatchSelect}
         onOptionSelect={handleOptionSelect}
         onNext={handleNext}
         onRevealHint={handleRevealHint}

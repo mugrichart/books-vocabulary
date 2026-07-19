@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   try {
     const { bookId } = await params;
     const url = new URL(req.url);
-    const mode = url.searchParams.get('mode');
+    const mode = url.searchParams.get('mode');        
     const pageIndexStr = url.searchParams.get('pageIndex');
     const limit = Math.min(100, Number(url.searchParams.get('limit')) || 50);
     const skip = Number(url.searchParams.get('skip')) || 0;
