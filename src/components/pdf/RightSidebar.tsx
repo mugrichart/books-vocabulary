@@ -5,6 +5,8 @@ import { Lightbulb } from 'lucide-react';
 type Mode = 'capture' | 'practice';
 
 export interface PracticeData {
+  /** How this panel content was triggered */
+  kind: 'attempts' | 'hint' | 'correctAuto';
   /** The correct answer */
   correct: string;
   /** Array of options (shuffled) */
@@ -40,8 +42,6 @@ interface Props {
 
 export default function RightSidebar({ mode, setMode, practiceData, attempts, hasActiveWord, cursor, batchSize, totalCaptures, onBatchSelect, onOptionSelect, onNext, onRevealHint }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
-  // Tracks whether practiceData was revealed via the hint button (not by exhausting attempts)
-  const [isHintRevealed, setIsHintRevealed] = useState(false);
 
   const totalBatches = totalCaptures > 0 ? Math.ceil(totalCaptures / batchSize) : 0;
   const currentBatchIndex = totalBatches > 0
@@ -65,7 +65,6 @@ export default function RightSidebar({ mode, setMode, practiceData, attempts, ha
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelected(null);
-    setIsHintRevealed(false);
   }, [practiceData]);
 
   const handleSelect = (opt: string) => {
@@ -75,7 +74,6 @@ export default function RightSidebar({ mode, setMode, practiceData, attempts, ha
   };
 
   const handleHint = () => {
-    setIsHintRevealed(true);
     onRevealHint?.();
   };
 
@@ -146,8 +144,25 @@ export default function RightSidebar({ mode, setMode, practiceData, attempts, ha
 
         {practiceData && (
           <div className="space-y-3">
+            {/* Auto-correct refresher: explanation only, no next button */}
+            {practiceData.kind === 'correctAuto' && (
+              <>
+                <p className="text-xs font-semibold uppercase tracking-wider text-violet-500">
+                  Quick refresher
+                </p>
+                <div className="rounded-lg border border-violet-300/40 dark:border-violet-700/40 bg-violet-50/50 dark:bg-violet-950/20 p-4">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-zinc-100 mb-2">
+                    {practiceData.correct}
+                  </p>
+                  <div className="text-sm text-slate-700 dark:text-zinc-300 whitespace-pre-line leading-relaxed">
+                    {practiceData.explanation}
+                  </div>
+                </div>
+              </>
+            )}
+
             {/* Hint-only view: explanation revealed without going through options */}
-            {isHintRevealed && selected === null ? (
+            {practiceData.kind === 'hint' && selected === null ? (
               <>
                 <div className="flex items-center gap-2 mb-1">
                   <Lightbulb className="h-4 w-4 text-amber-400 shrink-0" />
@@ -171,7 +186,7 @@ export default function RightSidebar({ mode, setMode, practiceData, attempts, ha
                   Got it → Next Word
                 </button>
               </>
-            ) : (
+            ) : practiceData.kind === 'attempts' ? (
               <>
                 {/* Options — always visible once practiceData arrives via attempts */}
                 <div className="space-y-2">
@@ -237,7 +252,7 @@ export default function RightSidebar({ mode, setMode, practiceData, attempts, ha
                   </>
                 )}
               </>
-            )}
+            ) : null}
           </div>
         )}
 

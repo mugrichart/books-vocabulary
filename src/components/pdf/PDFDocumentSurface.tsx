@@ -13,7 +13,7 @@ interface Props {
   allItems: CaptureItem[];
   activePracticeItem: CaptureItem | null;
   onCapture: (text: string, areas: HighlightArea[]) => Promise<void>;
-  onPracticeCorrect: (id: string) => void;
+  onPracticeCorrect: (item: CaptureItem) => void;
   onAttemptsExhausted?: (data: { options: string[]; explanation: string }) => void;
   onAttemptChange?: (count: number) => void;
   /** Page to open CapturePDFViewer on (changes trigger remount) */

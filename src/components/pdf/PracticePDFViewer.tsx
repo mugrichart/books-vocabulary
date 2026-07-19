@@ -1,7 +1,7 @@
 "use client";
 "use no memo";
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { Viewer, Worker } from '@react-pdf-viewer/core';
 
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
@@ -20,7 +20,7 @@ interface Props {
     /** All captured items — used to render placeholder boxes on each page */
     allItems: CaptureItem[];
     activeItem: CaptureItem | null;
-    onCorrect: (id: string) => void;
+  onCorrect: (item: CaptureItem) => void;
     /** Called after 3 failed typing attempts — passes mock options + explanation upward */
     onAttemptsExhausted?: (data: { options: string[]; explanation: string }) => void;
     /** Reports the current attempt count upward so the sidebar can display it */
@@ -38,14 +38,12 @@ export default function PracticePDFViewer({
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
   // --- Attempt tracking state ---
-  const [attempts, setAttempts] = useState(0);
   const pauseTimerRef = useRef<NodeJS.Timeout | null>(null);
   const attemptsRef = useRef(0);
   const hasFiredRef = useRef(false);
 
   // Reset everything when the active word changes
   useEffect(() => {
-    setAttempts(0);
     attemptsRef.current = 0;
     hasFiredRef.current = false;
     onAttemptChange?.(0);
@@ -60,7 +58,7 @@ export default function PracticePDFViewer({
   const handleAnswerChange = useCallback((value: string) => {
     // Check for correct answer
     if (activeItem && normalizeAnswer(value) === normalizeAnswer(activeItem.word)) {
-      onCorrect(activeItem.id);
+      onCorrect(activeItem);
       return;
     }
 
@@ -76,7 +74,6 @@ export default function PracticePDFViewer({
     // Register an attempt after a 2‑second pause
     pauseTimerRef.current = setTimeout(() => {
       attemptsRef.current += 1;
-      setAttempts(attemptsRef.current);
       onAttemptChange?.(attemptsRef.current);
 
       // Fire onAttemptsExhausted directly when the 3rd attempt is registered.
@@ -95,18 +92,11 @@ export default function PracticePDFViewer({
     }, 2000);
   }, [activeItem, onCorrect, onAttemptChange, onAttemptsExhausted]);
 
-  // Stable ref for allItems so the highlight plugin closure always has fresh data
-  const allItemsRef = useRef(allItems);
-  allItemsRef.current = allItems;
-
-  const activeItemRef = useRef(activeItem);
-  activeItemRef.current = activeItem;
-
   const highlightPluginInstance = highlightPlugin({
     renderHighlightTarget: () => <span className="hidden" />,
     renderHighlights: (renderProps) => {
-      const currentActive = activeItemRef.current;
-      const currentAllItems = allItemsRef.current;
+      const currentActive = activeItem;
+      const currentAllItems = allItems;
 
       // Gather all unchecked items that have coordinates on this page
       const pageItems: { item: CaptureItem; areas: typeof currentAllItems[0]['coordinates'] }[] = [];

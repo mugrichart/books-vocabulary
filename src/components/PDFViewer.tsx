@@ -3,19 +3,13 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import LeftSidebar from './pdf/LeftSidebar';
-import RightSidebar from './pdf/RightSidebar';
+import RightSidebar, { type PracticeData } from './pdf/RightSidebar';
 import PDFDocumentSurface from './pdf/PDFDocumentSurface';
-import { usePdfSelections } from './pdf/usePdfSelections';
+import { type CaptureItem, usePdfSelections } from './pdf/usePdfSelections';
 
 interface Props {
   fileUrl: string;
   bookId: string;
-}
-
-interface PracticeData {
-  correct: string;
-  options: string[];
-  explanation: string;
 }
 
 export default function PDFViewer({ fileUrl, bookId }: Props) {
@@ -88,11 +82,25 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
   const handleAttemptsExhausted = useCallback((data: { options: string[]; explanation: string }) => {
     if (!activePracticeItem) return;
     setPracticeData({
+      kind: 'attempts',
       correct: activePracticeItem.word,
       options: data.options,
       explanation: data.explanation,
     });
   }, [activePracticeItem]);
+
+  // Called from PracticePDFViewer when user types the word correctly.
+  // We auto-advance as before, while keeping the explanation visible in the sidebar.
+  const handlePracticeCorrect = useCallback((item: CaptureItem) => {
+    setPracticeData({
+      kind: 'correctAuto',
+      correct: item.word,
+      options: [],
+      explanation: item.explanation || `General meaning: "${item.word}" generally refers to …`,
+    });
+    setAttempts(0);
+    markItemChecked(item.id);
+  }, [markItemChecked]);
 
   // Called from PracticePDFViewer each time the attempt count changes
   const handleAttemptChange = useCallback((count: number) => {
@@ -120,6 +128,7 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
   const handleRevealHint = useCallback(() => {
     if (!activePracticeItem) return;
     setPracticeData({
+      kind: 'hint',
       correct: activePracticeItem.word,
       options: activePracticeItem.options,
       explanation: activePracticeItem.explanation,
@@ -161,7 +170,7 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
           allItems={items}
           activePracticeItem={activePracticeItem}
           onCapture={captureSelection}
-          onPracticeCorrect={markItemChecked}
+          onPracticeCorrect={handlePracticeCorrect}
           onAttemptsExhausted={handleAttemptsExhausted}
           onAttemptChange={handleAttemptChange}
           captureInitialPage={captureInitialPage}
