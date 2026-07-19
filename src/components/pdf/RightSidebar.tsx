@@ -6,7 +6,7 @@ type Mode = 'capture' | 'practice';
 
 export interface PracticeData {
   /** How this panel content was triggered */
-  kind: 'attempts' | 'hint' | 'correctAuto';
+  kind: 'attempts' | 'hint';
   /** The correct answer */
   correct: string;
   /** Array of options (shuffled) */
@@ -20,6 +20,8 @@ interface Props {
   setMode: (mode: Mode) => void;
   /** Data supplied after attempts are exhausted OR after hint is revealed */
   practiceData?: PracticeData;
+  /** Passive explanation from the previously completed word */
+  passiveExplanation?: { correct: string; explanation: string };
   /** Current attempt count (0–3) */
   attempts: number;
   /** Whether there is an active word being practiced */
@@ -40,7 +42,7 @@ interface Props {
   onRevealHint?: () => void;
 }
 
-export default function RightSidebar({ mode, setMode, practiceData, attempts, hasActiveWord, cursor, batchSize, totalCaptures, onBatchSelect, onOptionSelect, onNext, onRevealHint }: Props) {
+export default function RightSidebar({ mode, setMode, practiceData, passiveExplanation, attempts, hasActiveWord, cursor, batchSize, totalCaptures, onBatchSelect, onOptionSelect, onNext, onRevealHint }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
 
   const totalBatches = totalCaptures > 0 ? Math.ceil(totalCaptures / batchSize) : 0;
@@ -139,28 +141,25 @@ export default function RightSidebar({ mode, setMode, practiceData, attempts, ha
                 ? `${3 - attempts} attempt${3 - attempts !== 1 ? 's' : ''} remaining`
                 : 'Loading options…'}
             </p>
+
+            {passiveExplanation && (
+              <div className="mt-4 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50/70 dark:bg-zinc-900 p-4">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                  Previous Word Refresher
+                </p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-zinc-100 mb-2">
+                  {passiveExplanation.correct}
+                </p>
+                <div className="text-sm text-slate-700 dark:text-zinc-300 whitespace-pre-line leading-relaxed">
+                  {passiveExplanation.explanation}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {practiceData && (
           <div className="space-y-3">
-            {/* Auto-correct refresher: explanation only, no next button */}
-            {practiceData.kind === 'correctAuto' && (
-              <>
-                <p className="text-xs font-semibold uppercase tracking-wider text-violet-500">
-                  Quick refresher
-                </p>
-                <div className="rounded-lg border border-violet-300/40 dark:border-violet-700/40 bg-violet-50/50 dark:bg-violet-950/20 p-4">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-zinc-100 mb-2">
-                    {practiceData.correct}
-                  </p>
-                  <div className="text-sm text-slate-700 dark:text-zinc-300 whitespace-pre-line leading-relaxed">
-                    {practiceData.explanation}
-                  </div>
-                </div>
-              </>
-            )}
-
             {/* Hint-only view: explanation revealed without going through options */}
             {practiceData.kind === 'hint' && selected === null ? (
               <>

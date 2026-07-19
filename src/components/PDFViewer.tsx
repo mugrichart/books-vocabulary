@@ -12,6 +12,11 @@ interface Props {
   bookId: string;
 }
 
+interface PassiveExplanation {
+  correct: string;
+  explanation: string;
+}
+
 export default function PDFViewer({ fileUrl, bookId }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<'practice' | 'capture'>('capture');
@@ -75,12 +80,15 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
 
   // Holds mock practice data after attempts are exhausted
   const [practiceData, setPracticeData] = useState<PracticeData | undefined>(undefined);
+  // Holds previous-word explanation while current-word attempts continue
+  const [passiveExplanation, setPassiveExplanation] = useState<PassiveExplanation | undefined>(undefined);
   // Track attempt count for display in the sidebar
   const [attempts, setAttempts] = useState(0);
 
   // Called from PracticePDFViewer → PDFDocumentSurface when 3 attempts are used
   const handleAttemptsExhausted = useCallback((data: { options: string[]; explanation: string }) => {
     if (!activePracticeItem) return;
+    setPassiveExplanation(undefined);
     setPracticeData({
       kind: 'attempts',
       correct: activePracticeItem.word,
@@ -90,12 +98,10 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
   }, [activePracticeItem]);
 
   // Called from PracticePDFViewer when user types the word correctly.
-  // We auto-advance as before, while keeping the explanation visible in the sidebar.
+  // We auto-advance as before and keep an ambient explanation in the sidebar.
   const handlePracticeCorrect = useCallback((item: CaptureItem) => {
-    setPracticeData({
-      kind: 'correctAuto',
+    setPassiveExplanation({
       correct: item.word,
-      options: [],
       explanation: item.explanation || `General meaning: "${item.word}" generally refers to …`,
     });
     setAttempts(0);
@@ -127,6 +133,7 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
   // Called from RightSidebar hint button — skip attempts and reveal explanation immediately
   const handleRevealHint = useCallback(() => {
     if (!activePracticeItem) return;
+    setPassiveExplanation(undefined);
     setPracticeData({
       kind: 'hint',
       correct: activePracticeItem.word,
@@ -137,6 +144,7 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
 
   const handleBatchSelect = useCallback((cursor: number) => {
     setPracticeData(undefined);
+    setPassiveExplanation(undefined);
     setAttempts(0);
     jumpToPracticeCursor(cursor);
   }, [jumpToPracticeCursor]);
@@ -154,6 +162,7 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
         onResetPractice={() => {
           resetPractice();
           setPracticeData(undefined);
+          setPassiveExplanation(undefined);
           setAttempts(0);
         }}
         highlightQuery={highlightQuery}
@@ -183,6 +192,7 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
         mode={mode}
         setMode={setMode}
         practiceData={practiceData}
+        passiveExplanation={passiveExplanation}
         attempts={attempts}
         hasActiveWord={activePracticeItem !== null}
         cursor={practiceCursor}
