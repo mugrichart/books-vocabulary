@@ -172,6 +172,8 @@ export default function StoryWorkspace({ storyId }: Props) {
             }))
           : [];
         setCaptureWords(nextCaptures);
+        // Prevent previous sentence-anchor matches from pre-checking the next batch.
+        setMatchAnchorText("");
         setCaptureTotal(typeof data?.total === "number" ? data.total : nextCaptures.length);
         setLoadedCaptureCursor(activeCaptureCursor);
       } catch (error) {
