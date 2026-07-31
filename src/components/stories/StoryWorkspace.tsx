@@ -111,8 +111,11 @@ export default function StoryWorkspace({ storyId }: Props) {
   const selectedSceneId = selectedScene?.id ?? null;
   const storyCaptureCursor = story?.captureCursor ?? 0;
   const storyBookId = story?.bookId ?? null;
+  const currentBatchCaptureIdSet = useMemo(() => new Set(captureWords.map((capture) => capture.id)), [captureWords]);
   const usedCaptureIds = useMemo(() => {
-    const used = new Set<string>(manualCheckedCaptureIds);
+    const used = new Set<string>(
+      Array.from(manualCheckedCaptureIds).filter((captureId) => currentBatchCaptureIdSet.has(captureId))
+    );
     if (!selectedScene || sceneMode !== "write") {
       return used;
     }
@@ -128,8 +131,9 @@ export default function StoryWorkspace({ storyId }: Props) {
     });
 
     return used;
-  }, [captureWords, manualCheckedCaptureIds, matchAnchorText, sceneMode, selectedScene]);
-  const cumulativeUsedCount = Math.min(captureTotal, storyCaptureCursor + usedCaptureIds.size);
+  }, [captureWords, currentBatchCaptureIdSet, manualCheckedCaptureIds, matchAnchorText, sceneMode, selectedScene]);
+  const usedCountInCurrentBatch = captureWords.reduce((count, capture) => (usedCaptureIds.has(capture.id) ? count + 1 : count), 0);
+  const cumulativeUsedCount = Math.min(captureTotal, storyCaptureCursor + usedCountInCurrentBatch);
   const cumulativeRemainingCount = Math.max(0, captureTotal - cumulativeUsedCount);
   const displayedActiveCapture = useMemo(() => {
     if (!activeCapture) return null;
