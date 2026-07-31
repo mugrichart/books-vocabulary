@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BookOpen, Compass, GraduationCap, LayoutDashboard, LogOut } from "lucide-react";
+import { BookOpen, Compass, GraduationCap, LayoutDashboard, LogOut, PenSquare } from "lucide-react";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -13,6 +13,7 @@ export function Navbar() {
     { name: "Books", href: "/books", icon: BookOpen },
     { name: "Vocabulary", href: "/vocabulary", icon: Compass },
     { name: "Practice", href: "/review", icon: GraduationCap },
+    { name: "Stories", href: "/stories", icon: PenSquare },
   ];
 
   const handleLogout = async () => {
@@ -36,10 +37,10 @@ export function Navbar() {
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-md shadow-violet-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-violet-500 to-indigo-600 text-white shadow-md shadow-violet-500/20">
             <GraduationCap className="h-5 w-5" />
           </div>
-          <span className="bg-gradient-to-r from-violet-400 via-purple-300 to-indigo-400 bg-clip-text text-xl font-bold tracking-tight text-transparent">
+          <span className="bg-linear-to-r from-violet-400 via-purple-300 to-indigo-400 bg-clip-text text-xl font-bold tracking-tight text-transparent">
             LexiFlow
           </span>
         </div>
@@ -61,7 +62,7 @@ export function Navbar() {
                 <Icon className="h-4 w-4" />
                 <span className="hidden sm:inline">{item.name}</span>
                 {isActive && (
-                  <span className="absolute bottom-0 left-1/2 h-0.5 w-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500" />
+                  <span className="absolute bottom-0 left-1/2 h-0.5 w-1/2 -translate-x-1/2 rounded-full bg-linear-to-r from-violet-500 to-indigo-500" />
                 )}
               </Link>
             );
