@@ -16,6 +16,11 @@ interface Props {
   onPracticeCorrect: (item: CaptureItem) => void;
   onAttemptsExhausted?: (data: { options: string[]; explanation: string }) => void;
   onAttemptChange?: (count: number) => void;
+  onSpeechTranscriptChange?: (value: string) => void;
+  onSpeechListeningChange?: (value: boolean) => void;
+  onSpeechActivityChange?: (value: boolean) => void;
+  speechClearNonce: number;
+  speakModeEnabled: boolean;
   /** Page to open CapturePDFViewer on (changes trigger remount) */
   captureInitialPage: number;
   /** Bumped whenever CapturePDFViewer should remount to jump to captureInitialPage */
@@ -31,6 +36,11 @@ export default function PDFDocumentSurface({
   onPracticeCorrect,
   onAttemptsExhausted,
   onAttemptChange,
+  onSpeechTranscriptChange,
+  onSpeechListeningChange,
+  onSpeechActivityChange,
+  speechClearNonce,
+  speakModeEnabled,
   captureInitialPage,
   captureViewerKey,
 }: Props) {
@@ -43,6 +53,11 @@ export default function PDFDocumentSurface({
          onCorrect={onPracticeCorrect}
          onAttemptsExhausted={onAttemptsExhausted}
          onAttemptChange={onAttemptChange}
+         onSpeechTranscriptChange={onSpeechTranscriptChange}
+         onSpeechListeningChange={onSpeechListeningChange}
+         onSpeechActivityChange={onSpeechActivityChange}
+         speechClearNonce={speechClearNonce}
+         speakModeEnabled={speakModeEnabled}
        />
      );
   }

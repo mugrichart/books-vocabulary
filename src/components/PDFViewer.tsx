@@ -85,6 +85,24 @@ export default function PDFViewer({ fileUrl, bookId, bookTitle }: Props) {
   const [passiveExplanation, setPassiveExplanation] = useState<PassiveExplanation | undefined>(undefined);
   // Track attempt count for display in the sidebar
   const [attempts, setAttempts] = useState(0);
+  const [speakModeEnabled, setSpeakModeEnabled] = useState(false);
+  const [speechTranscript, setSpeechTranscript] = useState('');
+  const [isSpeechListening, setIsSpeechListening] = useState(false);
+  const [isSpeechActive, setIsSpeechActive] = useState(false);
+  const [speechClearNonce, setSpeechClearNonce] = useState(0);
+
+  useEffect(() => {
+    const isSmallDevice = window.matchMedia('(max-width: 1024px)').matches;
+    setSpeakModeEnabled(isSmallDevice);
+  }, []);
+
+  useEffect(() => {
+    if (!speakModeEnabled) {
+      setSpeechTranscript('');
+      setIsSpeechActive(false);
+      setIsSpeechListening(false);
+    }
+  }, [speakModeEnabled]);
 
   const launchDomConfetti = useCallback((intensity: number) => {
     const colors = ['#8b5cf6', '#22c55e', '#06b6d4', '#f59e0b', '#ef4444', '#eab308'];
@@ -264,6 +282,11 @@ export default function PDFViewer({ fileUrl, bookId, bookTitle }: Props) {
     setAttempts(count);
   }, []);
 
+  const handleClearSpeechTranscript = useCallback(() => {
+    setSpeechTranscript('');
+    setSpeechClearNonce((prev) => prev + 1);
+  }, []);
+
   // Called from RightSidebar when user picks an option
   const handleOptionSelect = useCallback(() => {
     // Don't auto-advance — let the user read the explanation and click Next.
@@ -333,6 +356,11 @@ export default function PDFViewer({ fileUrl, bookId, bookTitle }: Props) {
           onPracticeCorrect={handlePracticeCorrect}
           onAttemptsExhausted={handleAttemptsExhausted}
           onAttemptChange={handleAttemptChange}
+          onSpeechTranscriptChange={setSpeechTranscript}
+          onSpeechListeningChange={setIsSpeechListening}
+          onSpeechActivityChange={setIsSpeechActive}
+          speechClearNonce={speechClearNonce}
+          speakModeEnabled={speakModeEnabled}
           captureInitialPage={captureInitialPage}
           captureViewerKey={captureViewerKey}
         />
@@ -353,6 +381,14 @@ export default function PDFViewer({ fileUrl, bookId, bookTitle }: Props) {
         onOptionSelect={handleOptionSelect}
         onNext={handleNext}
         onRevealHint={handleRevealHint}
+        speakModeEnabled={speakModeEnabled}
+        onSpeakModeChange={setSpeakModeEnabled}
+        speechTranscript={speechTranscript}
+        isSpeechListening={isSpeechListening}
+        isSpeechActive={isSpeechActive}
+        onClearSpeechTranscript={handleClearSpeechTranscript}
+        currentPracticeWord={activePracticeItem?.word}
+        currentPracticeSentence={activePracticeItem?.sentence}
       />
     </div>
   );

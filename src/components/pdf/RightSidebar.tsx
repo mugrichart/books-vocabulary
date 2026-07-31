@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Lightbulb } from 'lucide-react';
+import { Lightbulb, MoreVertical, Mic, Volume2, X } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 
 type Mode = 'capture' | 'practice';
@@ -40,10 +47,36 @@ interface Props {
   onNext?: () => void;
   /** Callback when the user reveals the hint, skipping attempts */
   onRevealHint?: () => void;
+  /** Whether spoken-answer mode is enabled */
+  speakModeEnabled: boolean;
+  /** Toggles spoken-answer mode */
+  onSpeakModeChange: (enabled: boolean) => void;
+  /** Current recognized speech transcript */
+  speechTranscript: string;
+  /** Whether recognizer is currently listening */
+  isSpeechListening: boolean;
+  /** Whether user is currently speaking */
+  isSpeechActive: boolean;
+  /** Manually clear current transcript */
+  onClearSpeechTranscript: () => void;
+  /** Current active practice word */
+  currentPracticeWord?: string;
+  /** Current active practice sentence */
+  currentPracticeSentence?: string;
 }
 
-export default function RightSidebar({ mode, setMode, practiceData, passiveExplanation, attempts, hasActiveWord, cursor, batchSize, totalCaptures, onBatchSelect, onOptionSelect, onNext, onRevealHint }: Props) {
+export default function RightSidebar({ mode, setMode, practiceData, passiveExplanation, attempts, hasActiveWord, cursor, batchSize, totalCaptures, onBatchSelect, onOptionSelect, onNext, onRevealHint, speakModeEnabled, onSpeakModeChange, speechTranscript, isSpeechListening, isSpeechActive, onClearSpeechTranscript, currentPracticeWord, currentPracticeSentence }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
+
+  const speakText = (text: string) => {
+    if (!text || typeof window === 'undefined' || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    window.speechSynthesis.speak(utterance);
+  };
 
   const totalBatches = totalCaptures > 0 ? Math.ceil(totalCaptures / batchSize) : 0;
   const currentBatchIndex = totalBatches > 0
@@ -101,6 +134,25 @@ export default function RightSidebar({ mode, setMode, practiceData, passiveExpla
         >
           Practice
         </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label="More practice options"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={8} className="w-48">
+            <div className="px-1.5 py-1 text-xs font-medium text-muted-foreground">Practice Options</div>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem
+              checked={speakModeEnabled}
+              onCheckedChange={(checked) => onSpeakModeChange(Boolean(checked))}
+            >
+              <Mic className="mr-1 h-4 w-4" />
+              Speak answers
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Middle section: attempts counter + options + explanation */}
@@ -257,8 +309,72 @@ export default function RightSidebar({ mode, setMode, practiceData, passiveExpla
 
         {/* Empty state when no practice data and no attempts yet */}
         {!practiceData && mode === 'practice' && attempts === 0 && (
-          <div className="flex items-center justify-center h-32 text-sm text-slate-400 dark:text-zinc-500 text-center leading-relaxed">
-            Type in the overlay on the PDF<br />to guess the word…
+          <div className="space-y-2">
+            {speakModeEnabled ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 text-xs text-slate-600 dark:border-zinc-700 dark:bg-zinc-900/70 dark:text-zinc-300">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="font-semibold text-slate-700 dark:text-zinc-200">Speak the hidden word or phrase</span>
+                  <div className="flex items-center gap-1">
+                    <span
+                      className={`inline-flex h-2 w-2 rounded-full ${isSpeechListening ? 'bg-emerald-500' : 'bg-zinc-500'}`}
+                      aria-hidden="true"
+                    />
+                    {speechTranscript && (
+                      <button
+                        type="button"
+                        onClick={onClearSpeechTranscript}
+                        className="inline-flex h-5 w-5 items-center justify-center rounded border border-slate-300 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:border-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                        title="Clear transcript"
+                        aria-label="Clear transcript"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mb-2 flex h-4 items-end gap-1" aria-hidden="true">
+                  {[0, 1, 2, 3, 4].map((bar) => (
+                    <span
+                      key={bar}
+                      className={`w-1 rounded-sm bg-violet-500/80 transition-all duration-150 ${isSpeechActive ? 'animate-pulse' : ''}`}
+                      style={{ height: isSpeechActive ? `${8 + ((bar % 3) + 1) * 3}px` : '5px' }}
+                    />
+                  ))}
+                </div>
+
+                <div className="min-h-10 rounded border border-dashed border-slate-300 bg-white/70 px-2 py-1.5 text-[11px] text-slate-700 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200">
+                  {speechTranscript || 'Listening… (or type directly in the PDF box)'}
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => currentPracticeWord && speakText(currentPracticeWord)}
+                    disabled={!currentPracticeWord}
+                    className="inline-flex items-center justify-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    <Volume2 className="h-3.5 w-3.5" />
+                    Play word
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => currentPracticeSentence && speakText(currentPracticeSentence)}
+                    disabled={!currentPracticeSentence}
+                    className="inline-flex items-center justify-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    <Volume2 className="h-3.5 w-3.5" />
+                    Play sentence
+                  </button>
+                </div>
+                <p className="mt-2 text-[10px] text-slate-500 dark:text-zinc-400">
+                  Transcript auto-clears after ~2s pause if there is no match.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-32 text-sm text-slate-400 dark:text-zinc-500 text-center leading-relaxed">
+                <><span>Type in the overlay on the PDF</span><br /><span>to guess the word…</span></>
+              </div>
+            )}
           </div>
         )}
       </div>

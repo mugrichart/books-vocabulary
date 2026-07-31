@@ -25,7 +25,52 @@ interface Props {
     onAttemptsExhausted?: (data: { options: string[]; explanation: string }) => void;
     /** Reports the current attempt count upward so the sidebar can display it */
     onAttemptChange?: (count: number) => void;
+    /** If true, user answers by speaking instead of typing */
+    speakModeEnabled: boolean;
+    /** Emits current speech transcript for sidebar display */
+    onSpeechTranscriptChange?: (value: string) => void;
+    /** Emits whether speech recognizer is actively listening */
+    onSpeechListeningChange?: (value: boolean) => void;
+    /** Emits speaking activity to animate sidebar bars */
+    onSpeechActivityChange?: (value: boolean) => void;
+    /** Increment to clear current transcript manually */
+    speechClearNonce: number;
 }
+
+interface SpeechRecognitionResultAlternative {
+  transcript: string;
+}
+
+interface SpeechRecognitionResult {
+  isFinal: boolean;
+  [index: number]: SpeechRecognitionResultAlternative;
+}
+
+interface SpeechRecognitionEvent {
+  resultIndex: number;
+  results: {
+    [index: number]: SpeechRecognitionResult;
+    length: number;
+  };
+}
+
+interface BrowserSpeechRecognition {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+type SpeechRecognitionCtor = new () => BrowserSpeechRecognition;
+
+type WindowWithSpeech = Window & {
+  webkitSpeechRecognition?: SpeechRecognitionCtor;
+  SpeechRecognition?: SpeechRecognitionCtor;
+};
 
 export default function PracticePDFViewer({
     fileUrl,
@@ -34,6 +79,11 @@ export default function PracticePDFViewer({
     onCorrect,
     onAttemptsExhausted,
     onAttemptChange,
+    speakModeEnabled,
+    onSpeechTranscriptChange,
+    onSpeechListeningChange,
+    onSpeechActivityChange,
+    speechClearNonce,
 }: Props) {
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
@@ -41,6 +91,25 @@ export default function PracticePDFViewer({
   const pauseTimerRef = useRef<NodeJS.Timeout | null>(null);
   const attemptsRef = useRef(0);
   const hasFiredRef = useRef(false);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const speakModeEnabledRef = useRef(speakModeEnabled);
+  const activeItemRef = useRef<CaptureItem | null>(activeItem);
+  const onCorrectRef = useRef(onCorrect);
+  const clearTranscriptTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const speechActivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const transcriptRef = useRef('');
+
+  useEffect(() => {
+    speakModeEnabledRef.current = speakModeEnabled;
+  }, [speakModeEnabled]);
+
+  useEffect(() => {
+    activeItemRef.current = activeItem;
+  }, [activeItem]);
+
+  useEffect(() => {
+    onCorrectRef.current = onCorrect;
+  }, [onCorrect]);
 
   // Reset everything when the active word changes
   useEffect(() => {
@@ -54,6 +123,156 @@ export default function PracticePDFViewer({
   }, [activeItem?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const normalizeAnswer = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
+  const normalizeSpoken = (value: string) =>
+    normalizeAnswer(value)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s']/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const clearTranscript = useCallback(() => {
+    transcriptRef.current = '';
+    onSpeechTranscriptChange?.('');
+  }, [onSpeechTranscriptChange]);
+
+  const scheduleTranscriptClear = useCallback(() => {
+    if (clearTranscriptTimerRef.current) {
+      clearTimeout(clearTranscriptTimerRef.current);
+    }
+    clearTranscriptTimerRef.current = setTimeout(() => {
+      clearTranscript();
+    }, 2000);
+  }, [clearTranscript]);
+
+  const flagSpeechActivity = useCallback(() => {
+    onSpeechActivityChange?.(true);
+    if (speechActivityTimerRef.current) {
+      clearTimeout(speechActivityTimerRef.current);
+    }
+    speechActivityTimerRef.current = setTimeout(() => {
+      onSpeechActivityChange?.(false);
+    }, 260);
+  }, [onSpeechActivityChange]);
+
+  useEffect(() => {
+    if (clearTranscriptTimerRef.current) {
+      clearTimeout(clearTranscriptTimerRef.current);
+      clearTranscriptTimerRef.current = null;
+    }
+    clearTranscript();
+    onSpeechActivityChange?.(false);
+  }, [activeItem?.id, clearTranscript, onSpeechActivityChange]);
+
+  useEffect(() => {
+    clearTranscript();
+  }, [clearTranscript, speechClearNonce]);
+
+  useEffect(() => {
+    const browserWindow = window as WindowWithSpeech;
+    const SpeechRecognitionCtor = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition;
+
+    if (!SpeechRecognitionCtor || !speakModeEnabled || !activeItem) {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+      onSpeechListeningChange?.(false);
+      onSpeechActivityChange?.(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const latestActiveItem = activeItemRef.current;
+      if (!latestActiveItem) return;
+
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        if (event.results[i].isFinal) {
+          transcript += ` ${event.results[i][0]?.transcript ?? ''}`;
+        }
+      }
+
+      flagSpeechActivity();
+
+      const mergedTranscript = `${transcriptRef.current} ${transcript}`.trim();
+      transcriptRef.current = mergedTranscript;
+      onSpeechTranscriptChange?.(mergedTranscript);
+
+      const normalizedTranscript = normalizeSpoken(mergedTranscript);
+      const normalizedTarget = normalizeSpoken(latestActiveItem.word);
+
+      if (normalizedTranscript && normalizedTarget && normalizedTranscript.includes(normalizedTarget)) {
+        if (clearTranscriptTimerRef.current) {
+          clearTimeout(clearTranscriptTimerRef.current);
+          clearTranscriptTimerRef.current = null;
+        }
+        clearTranscript();
+        onCorrectRef.current(latestActiveItem);
+      } else {
+        scheduleTranscriptClear();
+      }
+    };
+
+    recognition.onend = () => {
+      onSpeechListeningChange?.(false);
+      if (speakModeEnabledRef.current && activeItemRef.current) {
+        try {
+          recognition.start();
+          onSpeechListeningChange?.(true);
+        } catch {
+          // Some browsers throw if start is called while already starting.
+        }
+      }
+    };
+
+    recognition.onerror = () => {
+      // Ignore recoverable errors; onend restart handles transient failures.
+      onSpeechListeningChange?.(false);
+    };
+
+    try {
+      recognition.start();
+      recognitionRef.current = recognition;
+      onSpeechListeningChange?.(true);
+    } catch {
+      recognitionRef.current = null;
+      onSpeechListeningChange?.(false);
+    }
+
+    return () => {
+      recognition.onend = null;
+      recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.stop();
+      recognitionRef.current = null;
+      onSpeechListeningChange?.(false);
+      onSpeechActivityChange?.(false);
+    };
+  }, [
+    activeItem,
+    clearTranscript,
+    flagSpeechActivity,
+    onSpeechActivityChange,
+    onSpeechListeningChange,
+    onSpeechTranscriptChange,
+    scheduleTranscriptClear,
+    speakModeEnabled,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (clearTranscriptTimerRef.current) {
+        clearTimeout(clearTranscriptTimerRef.current);
+      }
+      if (speechActivityTimerRef.current) {
+        clearTimeout(speechActivityTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleAnswerChange = useCallback((value: string) => {
     // Check for correct answer
