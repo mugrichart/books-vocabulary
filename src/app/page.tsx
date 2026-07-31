@@ -1,59 +1,165 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useVocabulary } from "@/hooks/use-vocabulary";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, BookPlus, GraduationCap, Plus, Sparkles, TrendingUp, Trophy, FileText, Loader2 } from "lucide-react";
+import { BookOpen, BookPlus, GraduationCap, Sparkles, TrendingUp, Trophy, Loader2 } from "lucide-react";
 
 export default function Dashboard() {
-  const { books, words, addWord, addBook, isLoading } = useVocabulary();
-
-  // Word Form State
-  const [word, setWord] = useState("");
-  const [definition, setDefinition] = useState("");
-  const [translation, setTranslation] = useState("");
-  const [context, setContext] = useState("");
-  const [wordBookId, setWordBookId] = useState("");
-  const [isWordOpen, setIsWordOpen] = useState(false);
+  const { books, words, addBook, isLoading } = useVocabulary();
 
   // Book Form State
   const [bookTitle, setBookTitle] = useState("");
   const [bookAuthor, setBookAuthor] = useState("");
   const [bookPages, setBookPages] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const pdfPreviewUrlRef = useRef<string | null>(null);
   const [isBookOpen, setIsBookOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [practiceStatsByBook, setPracticeStatsByBook] = useState<Record<string, { level: number; captures: number }>>({});
+  const [recentBookIds, setRecentBookIds] = useState<string[]>([]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const RECENT_BOOKS_STORAGE_KEY = "recent-book-ids";
+
+  const readRecentBookIds = () => {
+    if (typeof window === "undefined") return [] as string[];
+    const raw = window.localStorage.getItem(RECENT_BOOKS_STORAGE_KEY);
+    if (!raw) return [] as string[];
+
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+    } catch {
+      return [] as string[];
+    }
+  };
+
+  const parsePracticeLevel = (bookId: string) => {
+    if (typeof window === "undefined") return 0;
+    const raw = window.localStorage.getItem(`practice-cursor:${bookId}`);
+    const parsed = Number.parseInt(raw ?? "0", 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  };
+
+  const getFirstPagePreview = async (file: File) => {
+    const pdfjs = await import("pdfjs-dist");
+    pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
+
+    const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 1.2 });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("Canvas context initialization failed");
+    }
+
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: context, viewport }).promise;
+    return canvas.toDataURL("image/png");
+  };
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadPracticeStats = async () => {
+      if (books.length === 0) {
+        setPracticeStatsByBook({});
+        return;
+      }
+
+      const entries = await Promise.all(
+        books.map(async (book) => {
+          const level = parsePracticeLevel(book.id);
+          let captures = 0;
+
+          try {
+            const res = await fetch(`/api/capture/${book.id}?mode=highlight&limit=1`, {
+              cache: "no-store",
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              captures = typeof data?.total === "number" ? Math.max(0, data.total) : 0;
+            }
+          } catch (error) {
+            console.error(`Failed to load captures count for book ${book.id}:`, error);
+          }
+
+          return [book.id, { level, captures }] as const;
+        })
+      );
+
+      if (!isCancelled) {
+        setPracticeStatsByBook(Object.fromEntries(entries));
+      }
+    };
+
+    loadPracticeStats();
+    return () => {
+      isCancelled = true;
+    };
+  }, [books]);
+
+  useEffect(() => {
+    const refreshRecentBooks = () => {
+      setRecentBookIds(readRecentBookIds());
+    };
+
+    refreshRecentBooks();
+    window.addEventListener("focus", refreshRecentBooks);
+    window.addEventListener("storage", refreshRecentBooks);
+
+    return () => {
+      window.removeEventListener("focus", refreshRecentBooks);
+      window.removeEventListener("storage", refreshRecentBooks);
+    };
+  }, []);
+
+  const dashboardBooks = useMemo(() => {
+    const ordered = recentBookIds
+      .map((recentBookId) => books.find((book) => book.id === recentBookId))
+      .filter((book): book is NonNullable<typeof book> => Boolean(book));
+
+    if (ordered.length === 0) {
+      return books.slice(0, 4);
+    }
+
+    return ordered.slice(0, 4);
+  }, [books, recentBookIds]);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setPdfFile(file);
+      if (pdfPreviewUrlRef.current) {
+        URL.revokeObjectURL(pdfPreviewUrlRef.current);
+      }
+      const previewUrl = URL.createObjectURL(file);
+      pdfPreviewUrlRef.current = previewUrl;
+      setPdfPreviewUrl(previewUrl);
       
       // Auto-populate title if empty
       if (!bookTitle) {
         const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
         setBookTitle(cleanName);
       }
-    }
-  };
 
-  const handleAddWord = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!word || !definition || !wordBookId) return;
-    addWord(word, definition, translation, context, wordBookId);
-    setWord("");
-    setDefinition("");
-    setTranslation("");
-    setContext("");
-    setWordBookId("");
-    setIsWordOpen(false);
+      try {
+        setPdfPreviewUrl(await getFirstPagePreview(file));
+      } catch (error) {
+        console.error("Failed generating PDF preview:", error);
+      }
+    }
   };
 
   const handleAddBook = async (e: React.FormEvent) => {
@@ -67,42 +173,8 @@ export default function Dashboard() {
       let coverUrl = "";
 
       if (pdfFile) {
-        // Extract cover image from the PDF on the client side
-        const arrayBuffer = await pdfFile.arrayBuffer();
-        
-        // Dynamically import pdf.js to prevent SSR issues
-        const pdfjs = await import("pdfjs-dist");
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
-
-        const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-        const pdf = await loadingTask.promise;
-        const page = await pdf.getPage(1);
-        
-        const viewport = page.getViewport({ scale: 1.5 });
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-
-        if (!context) {
-          throw new Error("Canvas context initialization failed");
-        }
-
-        await page.render({
-          canvasContext: context,
-          viewport: viewport,
-        }).promise;
-
-        const coverBlob = await new Promise<Blob | null>((resolve) => {
-          canvas.toBlob((blob) => resolve(blob), "image/png");
-        });
-
-        // Prepare file upload payload
         const formData = new FormData();
         formData.append("pdf", pdfFile);
-        if (coverBlob) {
-          formData.append("cover", coverBlob, "cover.png");
-        }
 
         const res = await fetch("/api/upload", {
           method: "POST",
@@ -125,6 +197,11 @@ export default function Dashboard() {
       setBookAuthor("");
       setBookPages("");
       setPdfFile(null);
+      if (pdfPreviewUrlRef.current) {
+        URL.revokeObjectURL(pdfPreviewUrlRef.current);
+        pdfPreviewUrlRef.current = null;
+      }
+      setPdfPreviewUrl(null);
       setIsBookOpen(false);
     } catch (err: any) {
       console.error(err);
@@ -144,15 +221,16 @@ export default function Dashboard() {
 
   // Calculate statistics
   const totalWords = words.length;
-  const masteredWords = words.filter((w) => w.masteryLevel === "mastered").length;
+  const masteredWords = Object.values(practiceStatsByBook).reduce((sum, stat) => sum + stat.level, 0);
   const learningWords = words.filter((w) => w.masteryLevel === "learning").length;
   const reviewingWords = words.filter((w) => w.masteryLevel === "reviewing").length;
   const averageProgress = books.length
     ? Math.round(books.reduce((acc, curr) => acc + curr.progress, 0) / books.length)
     : 0;
+  const masteredPercent = totalWords > 0 ? Math.round((masteredWords * 100) / totalWords) : 0;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-8 animate-in fade-in duration-500">
       {/* Top Banner / Hero */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-violet-900/40 via-indigo-900/30 to-background border border-violet-500/10 p-6 md:p-8">
         <div className="absolute right-0 top-0 -mr-16 -mt-16 h-64 w-64 rounded-full bg-violet-600/10 blur-3xl" />
@@ -196,6 +274,17 @@ export default function Dashboard() {
                         className="cursor-pointer"
                       />
                     </div>
+                    {pdfPreviewUrl && (
+                      <div>
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-2">
+                          <img
+                            src={pdfPreviewUrl}
+                            alt="PDF first page preview"
+                            className="max-h-60 w-full rounded-md object-contain"
+                          />
+                        </div>
+                      </div>
+                    )}
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-muted-foreground">Book Title</label>
                       <Input
@@ -240,80 +329,6 @@ export default function Dashboard() {
                 </form>
               </DialogContent>
             </Dialog>
-
-            {/* Add Word Dialog */}
-            <Dialog open={isWordOpen} onOpenChange={setIsWordOpen}>
-              <DialogTrigger render={<Button className="gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-700 hover:to-indigo-700 shadow-md shadow-violet-500/20" />}>
-                <Plus className="h-4 w-4" />
-                Add Word
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[450px]">
-                <form onSubmit={handleAddWord}>
-                  <DialogHeader>
-                    <DialogTitle>Add New Vocabulary Word</DialogTitle>
-                    <DialogDescription>
-                      Log a new term you encountered while reading.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-muted-foreground">Word</label>
-                        <Input
-                          required
-                          placeholder="e.g. Ephemeral"
-                          value={word}
-                          onChange={(e) => setWord(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-muted-foreground">Translation (Optional)</label>
-                        <Input
-                          placeholder="e.g. Ulotny"
-                          value={translation}
-                          onChange={(e) => setTranslation(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-muted-foreground">Definition</label>
-                      <Input
-                        required
-                        placeholder="e.g. Lasting for a very short time"
-                        value={definition}
-                        onChange={(e) => setDefinition(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-muted-foreground">Context Sentence</label>
-                      <Input
-                        placeholder="e.g. Fame is ephemeral, but character endures."
-                        value={context}
-                        onChange={(e) => setContext(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-muted-foreground">Select Book</label>
-                      <Select required onValueChange={(val) => setWordBookId(val || "")} value={wordBookId}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Choose source book..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {books.map((b) => (
-                            <SelectItem key={b.id} value={b.id}>
-                              {b.title} ({b.author})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button type="submit" className="bg-violet-600 hover:bg-violet-700 text-white">Save Word</Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
           </div>
         </div>
       </div>
@@ -343,7 +358,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="text-2xl font-bold text-emerald-400">{masteredWords}</div>
             <p className="text-[10px] text-muted-foreground mt-1">
-              {totalWords > 0 ? Math.round((masteredWords / totalWords) * 100) : 0}% success rate
+              {masteredPercent}% success rate
             </p>
           </CardContent>
         </Card>
@@ -382,14 +397,20 @@ export default function Dashboard() {
         {/* Books Section */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold tracking-tight">Active Reading Material</h2>
+            <h2 className="text-lg font-bold tracking-tight">Books</h2>
             <Link href="/books" className="text-xs text-violet-400 hover:text-violet-300 font-medium">
               Manage Library &rarr;
             </Link>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {books.slice(0, 4).map((book) => (
+            {dashboardBooks.map((book) => {
+              const bookPracticeStats = practiceStatsByBook[book.id] ?? { level: 0, captures: 0 };
+              const safeCaptures = Math.max(0, bookPracticeStats.captures);
+              const boundedLevel = safeCaptures > 0 ? Math.min(bookPracticeStats.level, safeCaptures) : 0;
+              const practicePercent = safeCaptures > 0 ? Math.round((boundedLevel * 100) / safeCaptures) : 0;
+
+              return (
               <Card key={book.id} className="border-zinc-800 bg-zinc-950/20 hover:bg-zinc-950/40 transition-all overflow-hidden flex flex-col justify-between relative group">
                 <div className="p-4 flex gap-4">
                   {/* Miniature Cover */}
@@ -423,14 +444,26 @@ export default function Dashboard() {
                 </div>
                 <div className="px-4 pb-4 pt-1 space-y-1.5 border-t border-zinc-900/50">
                   <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>Progress: {book.progress}%</span>
-                    <span>{book.currentPage}/{book.totalPages} p.</span>
+                    <span>Practice: {boundedLevel}/{safeCaptures}</span>
+                    <span>{practicePercent}%</span>
                   </div>
-                  <Progress value={book.progress} className="h-1 bg-zinc-900" />
+                  <Progress value={practicePercent} className="h-1 bg-zinc-900" />
+                  {book.pdfUrl ? (
+                    <Link
+                      href={`/books/${book.id}`}
+                      className="mt-2 inline-flex h-8 w-full items-center justify-center rounded-md bg-violet-600 text-xs font-semibold text-white transition hover:bg-violet-700"
+                    >
+                      Read
+                    </Link>
+                  ) : (
+                    <span className="mt-2 inline-flex h-8 w-full items-center justify-center rounded-md border border-zinc-800 text-xs text-zinc-500">
+                      No PDF attached
+                    </span>
+                  )}
                 </div>
               </Card>
-            ))}
-            {books.length === 0 && (
+            )})}
+            {dashboardBooks.length === 0 && (
               <Card className="col-span-2 border-zinc-800 bg-zinc-950/20 p-8 text-center flex flex-col items-center justify-center space-y-2">
                 <BookOpen className="h-8 w-8 text-muted-foreground" />
                 <p className="text-sm font-semibold text-zinc-400">No books added yet</p>
@@ -451,8 +484,8 @@ export default function Dashboard() {
             </Link>
           </div>
 
-          <div className="space-y-3">
-            {words.slice(0, 5).map((w) => {
+          <div className="max-h-[520px] overflow-y-auto space-y-3 pr-1">
+            {words.slice(0, 40).map((w) => {
               const book = books.find((b) => b.id === w.bookId);
               return (
                 <div

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import PDFViewer from "@/components/PDFViewer";
 import { useVocabulary } from "@/hooks/use-vocabulary";
@@ -10,6 +11,26 @@ export default function ReadPage() {
   const params = useParams<{ bookId: string }>();
   const { books, isLoading } = useVocabulary();
   const book = books.find((item) => item.id === params.bookId);
+
+  useEffect(() => {
+    if (!book) return;
+
+    const storageKey = "recent-book-ids";
+    const existingRaw = window.localStorage.getItem(storageKey);
+    let existing: string[] = [];
+
+    if (existingRaw) {
+      try {
+        const parsed = JSON.parse(existingRaw);
+        existing = Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+      } catch {
+        existing = [];
+      }
+    }
+
+    const deduped = [book.id, ...existing.filter((id) => id !== book.id)].slice(0, 20);
+    window.localStorage.setItem(storageKey, JSON.stringify(deduped));
+  }, [book]);
 
   if (isLoading) {
     return (
@@ -55,8 +76,7 @@ export default function ReadPage() {
 
   return (
     <main className="space-y-4">
-
-      <PDFViewer fileUrl={book.pdfUrl} bookId={book.id} />
+      <PDFViewer fileUrl={book.pdfUrl} bookId={book.id} bookTitle={book.title} />
     </main>
   );
 }

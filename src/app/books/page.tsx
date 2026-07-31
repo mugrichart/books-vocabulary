@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useVocabulary } from "@/hooks/use-vocabulary";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ export default function BooksPage() {
   const [bookAuthor, setBookAuthor] = useState("");
   const [bookPages, setBookPages] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const pdfPreviewUrlRef = useRef<string | null>(null);
   const [isBookOpen, setIsBookOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -24,13 +26,45 @@ export default function BooksPage() {
   const [progressPage, setProgressPage] = useState("");
   const [isProgressOpen, setIsProgressOpen] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const getFirstPagePreview = async (file: File) => {
+    const pdfjs = await import("pdfjs-dist");
+    pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
+
+    const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 1.2 });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("Canvas context initialization failed");
+    }
+
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: context, viewport }).promise;
+    return canvas.toDataURL("image/png");
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setPdfFile(file);
+      if (pdfPreviewUrlRef.current) {
+        URL.revokeObjectURL(pdfPreviewUrlRef.current);
+      }
+      const previewUrl = URL.createObjectURL(file);
+      pdfPreviewUrlRef.current = previewUrl;
+      setPdfPreviewUrl(previewUrl);
       if (!bookTitle) {
         const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
         setBookTitle(cleanName);
+      }
+
+      try {
+        setPdfPreviewUrl(await getFirstPagePreview(file));
+      } catch (error) {
+        console.error("Failed generating PDF preview:", error);
       }
     }
   };
@@ -43,34 +77,28 @@ export default function BooksPage() {
       let pdfUrl = "";
       let coverUrl = "";
       if (pdfFile) {
-        const arrayBuffer = await pdfFile.arrayBuffer();
-        const pdfjs = await import("pdfjs-dist");
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
-        const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-        const page = await pdf.getPage(1);
-        const viewport = page.getViewport({ scale: 1.5 });
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-        if (context) {
-          await page.render({ canvasContext: context, viewport }).promise;
-          const coverBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob((blob) => resolve(blob), "image/png"));
-          const formData = new FormData();
-          formData.append("pdf", pdfFile);
-          if (coverBlob) formData.append("cover", coverBlob, "cover.png");
-          const res = await fetch("/api/upload", { method: "POST", body: formData });
-          if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.error || "Failed to upload to S3");
-          }
-          const data = await res.json();
-          pdfUrl = data.pdfUrl;
-          coverUrl = data.coverUrl;
+        const formData = new FormData();
+        formData.append("pdf", pdfFile);
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to upload to S3");
         }
+        const data = await res.json();
+        pdfUrl = data.pdfUrl;
+        coverUrl = data.coverUrl;
       }
       addBook(bookTitle, bookAuthor, parseInt(bookPages) || 100, pdfUrl, coverUrl);
-      setBookTitle(""); setBookAuthor(""); setBookPages(""); setPdfFile(null); setIsBookOpen(false);
+      setBookTitle("");
+      setBookAuthor("");
+      setBookPages("");
+      setPdfFile(null);
+      if (pdfPreviewUrlRef.current) {
+        URL.revokeObjectURL(pdfPreviewUrlRef.current);
+        pdfPreviewUrlRef.current = null;
+      }
+      setPdfPreviewUrl(null);
+      setIsBookOpen(false);
     } catch (err: any) {
       console.error(err);
       alert("Error: " + (err.message || "Failed to process PDF."));
@@ -100,6 +128,15 @@ export default function BooksPage() {
               <DialogHeader><DialogTitle>Add New Book</DialogTitle></DialogHeader>
               <div className="grid gap-4 py-4">
                 <Input type="file" accept="application/pdf" onChange={handleFileChange} />
+                {pdfPreviewUrl && (
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-2">
+                    <img
+                      src={pdfPreviewUrl}
+                      alt="PDF first page preview"
+                      className="max-h-60 w-full rounded-md object-contain"
+                    />
+                  </div>
+                )}
                 <Input required placeholder="Title" value={bookTitle} onChange={(e) => setBookTitle(e.target.value)} />
                 <Input required placeholder="Author" value={bookAuthor} onChange={(e) => setBookAuthor(e.target.value)} />
                 <Input required type="number" placeholder="Total Pages" value={bookPages} onChange={(e) => setBookPages(e.target.value)} />

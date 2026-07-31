@@ -1,7 +1,7 @@
 "use client";
 "use no memo";
 
-import { useEffect, useRef, useCallback } from 'react';
+import { Fragment, useEffect, useRef, useCallback } from 'react';
 import { Viewer, Worker } from '@react-pdf-viewer/core';
 
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
@@ -125,23 +125,38 @@ export default function PracticePDFViewer({
                 // handleAnswerChange silently ignores input after 3 attempts,
                 // so we never need readOnly/disabled — no grey-out, no focus issues.
                 return (
-                  <input
-                    key={`${item.id}-${index}`}
-                    autoFocus={index === 0}
-                    aria-label={`Type the hidden word from page ${area.pageIndex + 1}`}
-                    defaultValue=""
-                    onChange={(event) => handleAnswerChange(event.target.value)}
-                    className="absolute z-10 bg-white px-px font-semibold text-zinc-950 outline-none border-none ring-0 focus:ring-0 focus:outline-none"
-                    style={{
-                      boxSizing: 'border-box',
-                      fontSize: `${Math.max(8, Math.min(16, area.height * 6))}px`,
-                      height: `${area.height}%`,
-                      left: `${area.left}%`,
-                      lineHeight: 1,
-                      top: `${area.top}%`,
-                      width: `${area.width}%`,
-                    }}
-                  />
+                  <Fragment key={`${item.id}-${index}`}>
+                    {index === 0 && (
+                      <div
+                        aria-hidden="true"
+                        className="absolute left-1 z-20 animate-pulse select-none text-violet-500"
+                        style={{
+                          top: `${area.top + area.height / 2}%`,
+                          transform: 'translateY(-50%)',
+                          textShadow: '0 0 8px rgba(139, 92, 246, 0.6)',
+                        }}
+                      >
+                        <span className="text-lg leading-none">➜</span>
+                      </div>
+                    )}
+
+                    <input
+                      autoFocus={index === 0}
+                      aria-label={`Type the hidden word from page ${area.pageIndex + 1}`}
+                      defaultValue=""
+                      onChange={(event) => handleAnswerChange(event.target.value)}
+                      className="absolute z-10 bg-white px-px font-semibold text-zinc-950 outline-none border-none ring-0 focus:ring-0 focus:outline-none"
+                      style={{
+                        boxSizing: 'border-box',
+                        fontSize: `${Math.max(8, Math.min(16, area.height * 6))}px`,
+                        height: `${area.height}%`,
+                        left: `${area.left}%`,
+                        lineHeight: 1,
+                        top: `${area.top}%`,
+                        width: `${area.width}%`,
+                      }}
+                    />
+                  </Fragment>
                 );
               }
 

@@ -10,6 +10,7 @@ import { type CaptureItem, usePdfSelections } from './pdf/usePdfSelections';
 interface Props {
   fileUrl: string;
   bookId: string;
+  bookTitle: string;
 }
 
 interface PassiveExplanation {
@@ -17,7 +18,7 @@ interface PassiveExplanation {
   explanation: string;
 }
 
-export default function PDFViewer({ fileUrl, bookId }: Props) {
+export default function PDFViewer({ fileUrl, bookId, bookTitle }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<'practice' | 'capture'>('capture');
   const {
@@ -84,6 +85,156 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
   const [passiveExplanation, setPassiveExplanation] = useState<PassiveExplanation | undefined>(undefined);
   // Track attempt count for display in the sidebar
   const [attempts, setAttempts] = useState(0);
+
+  const launchDomConfetti = useCallback((intensity: number) => {
+    const colors = ['#8b5cf6', '#22c55e', '#06b6d4', '#f59e0b', '#ef4444', '#eab308'];
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.inset = '0';
+    container.style.pointerEvents = 'none';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+
+    const burstCount = Math.min(3, Math.max(1, intensity));
+
+    for (let burst = 0; burst < burstCount; burst += 1) {
+      window.setTimeout(() => {
+        const particleCount = 120 + burst * 35;
+        for (let i = 0; i < particleCount; i += 1) {
+          const piece = document.createElement('span');
+          const size = 6 + Math.random() * 7;
+          piece.style.position = 'absolute';
+          piece.style.width = `${size}px`;
+          piece.style.height = `${size * 0.6}px`;
+          piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+          piece.style.left = `${20 + Math.random() * 60}%`;
+          piece.style.top = `${20 + Math.random() * 40}%`;
+          piece.style.borderRadius = '1px';
+          container.appendChild(piece);
+
+          const driftX = (Math.random() - 0.5) * (480 + burst * 80);
+          const driftY = 320 + Math.random() * 320;
+          const spinTurns = 1 + Math.random() * 4;
+          const duration = 1400 + Math.random() * 1100;
+
+          piece.animate(
+            [
+              {
+                transform: `translate3d(0, 0, 0) rotate(0turn)`,
+                opacity: 1,
+              },
+              {
+                transform: `translate3d(${driftX}px, ${driftY}px, 0) rotate(${spinTurns}turn)`,
+                opacity: 0,
+              },
+            ],
+            {
+              duration,
+              easing: 'cubic-bezier(0.12, 0.85, 0.23, 1)',
+              fill: 'forwards',
+            }
+          );
+        }
+      }, burst * 420);
+    }
+
+    window.setTimeout(() => {
+      container.remove();
+    }, 3200 + burstCount * 280);
+  }, []);
+
+  const playCelebration = useCallback(async (intensity: number) => {
+    launchDomConfetti(intensity);
+
+    try {
+      const audioContext = new (window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)();
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+      const now = audioContext.currentTime;
+      const fanfare = [
+        { freq: 523.25, duration: 0.18, start: 0 },
+        { freq: 659.25, duration: 0.2, start: 0.11 },
+        { freq: 783.99, duration: 0.26, start: 0.21 },
+        { freq: 1046.5, duration: 0.35, start: 0.36 },
+      ];
+      const repeats = Math.min(3, Math.max(1, intensity));
+
+      for (let repeat = 0; repeat < repeats; repeat += 1) {
+        const repeatOffset = repeat * 0.58;
+        fanfare.forEach(({ freq, duration, start }) => {
+          const noteStart = now + repeatOffset + start;
+          const noteEnd = noteStart + duration;
+
+          const osc = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          const shimmer = audioContext.createOscillator();
+          const shimmerGain = audioContext.createGain();
+
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, noteStart);
+          osc.frequency.exponentialRampToValueAtTime(freq * 1.03, noteEnd);
+
+          shimmer.type = 'triangle';
+          shimmer.frequency.setValueAtTime(freq * 2, noteStart);
+
+          gain.gain.setValueAtTime(0.0001, noteStart);
+          gain.gain.exponentialRampToValueAtTime(0.18, noteStart + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteEnd);
+
+          shimmerGain.gain.setValueAtTime(0.0001, noteStart);
+          shimmerGain.gain.exponentialRampToValueAtTime(0.07, noteStart + 0.02);
+          shimmerGain.gain.exponentialRampToValueAtTime(0.0001, noteEnd);
+
+          osc.connect(gain);
+          shimmer.connect(shimmerGain);
+          gain.connect(audioContext.destination);
+          shimmerGain.connect(audioContext.destination);
+
+          osc.start(noteStart);
+          shimmer.start(noteStart);
+          osc.stop(noteEnd + 0.02);
+          shimmer.stop(noteEnd + 0.02);
+        });
+      }
+
+      const audioLifetime = repeats * 0.58 + 1;
+      window.setTimeout(() => {
+        void audioContext.close();
+      }, Math.ceil(audioLifetime * 1000));
+    } catch (error) {
+      console.error('Celebration audio failed:', error);
+    }
+  }, [launchDomConfetti]);
+
+  const previousCursorRef = useRef(practiceCursor);
+  const completedFullBatchStreakRef = useRef(0);
+  useEffect(() => {
+    if (mode !== 'practice') {
+      previousCursorRef.current = practiceCursor;
+      completedFullBatchStreakRef.current = 0;
+      return;
+    }
+
+    const previousCursor = previousCursorRef.current;
+    const cursorIncreased = practiceCursor > previousCursor;
+    const completedBatch = practiceCursor > 0 && practiceCursor % practiceBatchSize === 0;
+    const completedFinalPartialBatch = totalCount > 0 && practiceCursor === totalCount;
+
+    if (cursorIncreased && (completedBatch || completedFinalPartialBatch)) {
+      if (completedBatch) {
+        completedFullBatchStreakRef.current += 1;
+      } else {
+        completedFullBatchStreakRef.current = 0;
+      }
+
+      const streak = completedFullBatchStreakRef.current;
+      const intensity = streak >= 3 ? 3 : streak >= 2 ? 2 : 1;
+      playCelebration(intensity);
+    }
+
+    previousCursorRef.current = practiceCursor;
+  }, [mode, playCelebration, practiceBatchSize, practiceCursor, totalCount]);
 
   // Called from PracticePDFViewer → PDFDocumentSurface when 3 attempts are used
   const handleAttemptsExhausted = useCallback((data: { options: string[]; explanation: string }) => {
@@ -166,7 +317,7 @@ export default function PDFViewer({ fileUrl, bookId }: Props) {
           setAttempts(0);
         }}
         highlightQuery={highlightQuery}
-        title={bookId}
+        title={bookTitle}
         totalCount={totalCount}
         onBack={handleBack}
       />
